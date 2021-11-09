@@ -11,6 +11,11 @@ db.connect_to_sqlite(db.update_data, today)
 root = tk.Tk()
 root.title("Beta Calculator")
 
+LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
+
+Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
+Last_updated_lab.pack()
+
 style = ttk.Style()
 style.configure("Treeview", font=('Britannic', 11, 'bold'), rowheight=25)
 style.configure("Treeview.Heading", font=('Britannic' ,13, 'bold'))
