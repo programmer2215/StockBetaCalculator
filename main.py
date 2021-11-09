@@ -54,7 +54,7 @@ to_cal_lab.grid(row=0, column=2, padx=20, pady=5)
 to_cal.grid(row=1, column=2, padx=20, pady=5)
 
 
-def calc(sort=None):
+def calc(sort=None, sectors=None):
     for i in tv.get_children():
         tv.delete(i)
     start = from_cal.get_date().strftime("%Y-%m-%d")
@@ -63,7 +63,27 @@ def calc(sort=None):
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
-        result = sorted(result, key=lambda data: data['Beta']) 
+        result = sorted(result, key=lambda data: data['Beta'])
+    elif sort == "sctr":
+        sub_results = {}
+        sorted_by_sector = []
+        for i in result:
+            if i["Sector"] in sectors:
+                try:
+                    sub_results[i["Sector"]].append(i)
+                except KeyError:
+                    sub_results[i["Sector"]] = []
+                    sub_results[i["Sector"]].append(i)
+        show_rows_val = int(show_rows_var.get())
+        for v in sub_results.values():
+            sub_sorted = sorted(list(v), key=lambda x: x["Beta"], reverse=True)
+            if len(sub_sorted) > show_rows_val:
+                sub_sorted = sub_sorted[:show_rows_val]
+            for i in sub_sorted:
+                sorted_by_sector.append(i)
+        result = sorted_by_sector
+                
+
     for i,row in enumerate(result):
         tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2)))
 
@@ -88,11 +108,12 @@ checkbutton_vars = {}
 column = 0
 row = 0
 def sort_sector():
+    req_sectors = []
     for i,j in checkbutton_vars.items():
         if j.get() == "1":
-            print(f"{i}")
+            req_sectors.append(i)
+    calc(sort="sctr", sectors=req_sectors)
     
-
 
 for i, sector in enumerate(SECTORS):
     if i == 7:
@@ -100,9 +121,16 @@ for i, sector in enumerate(SECTORS):
         row = 0
     checkbutton_vars[sector] = tk.Variable()
     l = ttk.Checkbutton(checkbox_frame, text=sector, variable=checkbutton_vars[sector], command=sort_sector)
-    l.grid(column=column, row=row, sticky=tk.W)
+    l.grid(column=column, row=row, padx=5, sticky=tk.W)
     row += 1
+show_row_frame = tk.Frame(root)
+show_row_frame.pack(pady=10)
 
+show_rows_lab = tk.Label(show_row_frame, text="Show Rows:")
+show_rows_lab.pack()
+show_rows_var = tk.StringVar(value="1")
+show_rows = ttk.Entry(show_row_frame, textvariable=show_rows_var)
+show_rows.pack()
 
 
 root.mainloop()
