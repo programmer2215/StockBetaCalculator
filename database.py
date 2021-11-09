@@ -23,7 +23,6 @@ def getStockData(stock, start, end, nifty=False):
             end=datetime.strptime(end, '%Y-%m-%d').date(),
             index=True
         )
-        print(Nifty.head())
         return Nifty
     stock_data = get_history(
             symbol=stock,
@@ -70,19 +69,21 @@ CREATE TABLE IF NOT EXISTS NIFTY50(
 );'''
     cur.execute(SQL)
     for j,k in zip(index_data.index, index_data.Close):
-        print(j,k)
         add_record(cur, "NIFTY50", j, k)
     print("[NIFTY50] up to date")
 
-def add_record(cur, stock, date, close, cycle=False, validate=False):
+def get_last_date(cur, stock):
     SQL = f"""SELECT Date FROM "{stock}" ORDER BY Date DESC LIMIT 1;"""
     cur.execute(SQL)
     LAST_DATE = cur.fetchone()
-    print(LAST_DATE)
+    return str(LAST_DATE[0])
+
+def add_record(cur, stock, date, close, cycle=False, validate=False):
     if validate:
-        if not valid(date, LAST_DATE[0]):
+        LAST_DATE = get_last_date(cur, stock)
+        if not valid(date, LAST_DATE):
             return
-    print("valid")
+        print("valid")
     SQL = f"""INSERT INTO "{stock}" (Date, Close) VALUES ('{date}', '{close}');"""
     cur.execute(SQL)
     if cycle:
@@ -118,6 +119,18 @@ def get_beta_and_sector(cur, start, end):
             beta = calculate_beta(percent_changes_nifty, percent_changes_stock)
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
     return results
+
+def update_data(cur, now):
+    with open("stocks.txt") as f:
+        for stock in f:
+            stock = stock.strip()
+            last = get_last_date(cur, stock)
+            data = getStockData(stock, last, now)
+            for j,k in zip(data.index, data.Close):
+                add_record(cur, stock, str(j), k, validate=True)
+    index_data = getStockData("NIFTY 50", last, now, nifty=True)
+    for j,k in zip(index_data.index, index_data.Close):
+        add_record(cur, "NIFTY50", str(j), k, validate=True)
 
 
 if __name__ == "__main__":

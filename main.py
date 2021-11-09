@@ -2,7 +2,11 @@ from tkinter import ttk
 import tkinter as tk
 import database as db
 import tkcalendar as tkcal 
+from datetime import datetime
 
+today = datetime.today().strftime("%Y-%m-%d")
+print(today)
+db.connect_to_sqlite(db.update_data, today)
 
 root = tk.Tk()
 root.title("Beta Calculator")
