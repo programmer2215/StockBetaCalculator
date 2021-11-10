@@ -10,3 +10,9 @@ calculates [Beta value](https://www.investopedia.com/terms/b/beta.asp) of all [N
  - Run `database.py` in a terminal
  - Select Date Range to get records for all stocks
  - Run `main.py` to start the app
+
+<h2>CREDITS</h2>
+
+ - [swapniljariwala / nsepy](https://github.com/swapniljariwala/nsepy)
+ - [scipy / scipy](https://github.com/scipy/scipy)
+ - [j4321 / tkcalendar](https://github.com/j4321/tkcalendar)
