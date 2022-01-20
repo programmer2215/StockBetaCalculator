@@ -11,7 +11,7 @@ db.connect_to_sqlite(db.update_data, today)
 root = tk.Tk()
 root.title("Beta Calculator")
 
-LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
+LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "ADANIPORTS")
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()

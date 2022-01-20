@@ -1,3 +1,4 @@
+from re import L
 import sqlite3 as sql
 from nsepy import get_history
 from datetime import datetime
@@ -5,8 +6,7 @@ from scipy.stats import  linregress
 import csv
 
 def connect_to_sqlite(func, *args):
-    '''Sqlite Connection Wrapper...
-    not the best , whatever It works (ig)'''
+    '''Sqlite Connection Wrapper'''
     conn = sql.connect('StocksData.sqlite')
     cur = conn.cursor()
     return_val = func(cur, *args) # if it even returns something...
@@ -15,15 +15,7 @@ def connect_to_sqlite(func, *args):
 
     return return_val
 
-def getStockData(stock, start, end, nifty=False):
-    if nifty:
-        Nifty = get_history(
-            symbol=stock,
-            start=datetime.strptime(start, '%Y-%m-%d').date(),
-            end=datetime.strptime(end, '%Y-%m-%d').date(),
-            index=True
-        )
-        return Nifty
+def getStockData(stock, start, end):
     stock_data = get_history(
             symbol=stock,
             start=datetime.strptime(start, '%Y-%m-%d').date(),
@@ -53,24 +45,16 @@ def ON_CREATE(cur, start, end):
             SQL = f'''
 CREATE TABLE IF NOT EXISTS "{table_name}"(
     Date DATE,
-    Close FLOAT
+    Open FLOAT,
+    High FLOAT,
+    Low FLOAT
 );'''
             cur.execute(SQL)
             
-            for j,k in zip(data.index, data.Close):
-                add_record(cur, table_name, j, k)
+            for j,k,l,m in zip(data.index, data.Open, data.High, data.Low):
+                add_record(cur, table_name, j, k, l, m)
             print(f"[{table_name}] up to date")
 
-    index_data = getStockData("NIFTY 50", start, end, nifty=True)
-    SQL = f'''
-CREATE TABLE IF NOT EXISTS NIFTY50(
-    Date DATE,
-    Close FLOAT
-);'''
-    cur.execute(SQL)
-    for j,k in zip(index_data.index, index_data.Close):
-        add_record(cur, "NIFTY50", j, k)
-    print("[NIFTY50] up to date")
 
 def get_last_date(cur, stock):
     SQL = f"""SELECT Date FROM "{stock}" ORDER BY Date DESC LIMIT 1;"""
@@ -78,46 +62,36 @@ def get_last_date(cur, stock):
     LAST_DATE = cur.fetchone()
     return str(LAST_DATE[0])
 
-def add_record(cur, stock, date, close, cycle=False, validate=False):
+def add_record(cur, stock, date, open, high, low, cycle=False, validate=False):
     if validate:
         LAST_DATE = get_last_date(cur, stock)
         if not valid(date, LAST_DATE):
             return
-        print("valid")
-    SQL = f"""INSERT INTO "{stock}" (Date, Close) VALUES ('{date}', '{close}');"""
+    SQL = f"""INSERT INTO "{stock}" (Date, Open, High, Low) VALUES ('{date}', '{open}', '{high}', '{low}');"""
     cur.execute(SQL)
     if cycle:
         SQL = f"""DELETE FROM "{stock}" WHERE Date = (SELECT min(Date) FROM {stock});"""
         cur.execute(SQL)
-    
-
-
-def calculate_beta(nifty_changes, stock_changes):
-    m = linregress(nifty_changes, stock_changes)
-    return m.slope
 
 def get_beta_and_sector(cur, start, end):
-    SQL = f'SELECT Close FROM NIFTY50 Where Date BETWEEN "{start}" AND "{end}";'
+
     results = []
-    cur.execute(SQL)
-    percent_changes_nifty = []
-    close_data = cur.fetchall()
-    sector_data = get_sector_info()
-    for i in range(0, len(close_data) - 1):
-        per_change = ((float(close_data[i+1][0]) - float(close_data[i][0]))/float(close_data[i][0])) * 100
-        percent_changes_nifty.append(per_change)
     with open("stocks.txt", "r") as f:
+        sector_data = get_sector_info()
         for stock in f:
-            percent_changes_stock = []
             stock = stock.strip()
-            SQL = f"""SELECT Close FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}";"""
+            SQL = f"""SELECT * FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}";"""
             cur.execute(SQL)
-            close_data = cur.fetchall()
-            for i in range(0, len(close_data)-1):
-                per_change = ((float(close_data[i+1][0]) - float(close_data[i][0]))/float(close_data[i][0])) * 100
-                percent_changes_stock.append(per_change)
-            beta = calculate_beta(percent_changes_nifty, percent_changes_stock)
+            stock_data = cur.fetchall()
+            diff_vals = []
+            for i in range(0, len(stock_data)-1):
+                high_diff = abs(stock_data[i][1] - stock_data[i][2])
+                low_diff = abs(float(stock_data[i][1]) - float(stock_data[i][3]))
+                diff_vals.append(min([high_diff, low_diff]))
+            beta = sum(diff_vals) / len(diff_vals)
+            
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
+    print(results)
     return results
 
 def update_data(cur, now):
@@ -126,11 +100,8 @@ def update_data(cur, now):
             stock = stock.strip()
             last = get_last_date(cur, stock)
             data = getStockData(stock, last, now)
-            for j,k in zip(data.index, data.Close):
-                add_record(cur, stock, str(j), k, validate=True)
-    index_data = getStockData("NIFTY 50", last, now, nifty=True)
-    for j,k in zip(index_data.index, index_data.Close):
-        add_record(cur, "NIFTY50", str(j), k, validate=True)
+            for j,k,l,m in zip(data.index, data.Open, data.High, data.Low):
+                add_record(cur, stock, str(j), k, l, m, validate=True)
 
 
 if __name__ == "__main__":
