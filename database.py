@@ -83,11 +83,14 @@ def get_beta_and_sector(cur, start, end):
             SQL = f"""SELECT * FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}";"""
             cur.execute(SQL)
             stock_data = cur.fetchall()
+            print(stock)
             diff_vals = []
-            for i in range(0, len(stock_data)-1):
+            for i in range(0, len(stock_data)):
                 high_diff = abs(stock_data[i][1] - stock_data[i][2])
                 low_diff = abs(float(stock_data[i][1]) - float(stock_data[i][3]))
                 diff_vals.append(min([high_diff, low_diff]))
+            print(stock, sum(diff_vals), len(diff_vals))
+            print(diff_vals)
             beta = sum(diff_vals) / len(diff_vals)
             
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
