@@ -3,11 +3,14 @@ import tkinter as tk
 import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
+import datetime as dt
+import pyperclip
 
 today = datetime.today().strftime("%Y-%m-%d")
 print(today)
+print("PLEASE WAIT SOFTWARE IS DOWNLOADING THE LATEST DATA...")
 db.connect_to_sqlite(db.update_data, today)
-
+print("SUCCESSFULLY LOADED")
 root = tk.Tk()
 root.title("Beta Calculator")
 
@@ -46,16 +49,47 @@ tv = ttk.Treeview(
 tv.pack()
 
 tv.heading(1, text='Security')
-tv.heading(2, text='Sector')
-tv.heading(3, text='Beta (β)')
+tv.heading(2, text='Open price')
+tv.heading(3, text='Deviation')
+
+def copy_security():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][0])
+
+def copy_beta():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][2])
+
+def copy_open():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][1])
+
+def copy_row():
+    cur_row = tv.focus()
+    values = [str(value) for value in tv.item(cur_row)['values']]
+    string = ' '.join(values)
+    pyperclip.copy(string)
+
+
+def my_popup(e):
+    right_click_menu.tk_popup(e.x_root, e.y_root)
+
+tv.bind("<Button-3>", my_popup)
+
+right_click_menu = tk.Menu(tv, tearoff=False)
+right_click_menu.add_command(label="Copy Security", command=copy_security)
+right_click_menu.add_command(label="Copy Beta Value", command=copy_beta)
+right_click_menu.add_command(label="Copy Open Price Value", command=copy_open)
+right_click_menu.add_command(label="Copy Row", command=copy_row)
 
 frame_controls = tk.Frame(frame_top)
 frame_controls.pack(padx=5, pady=10)
 
-from_cal_lab = tk.Label(frame_controls, text='From: ', font=('Helvetica', 13))
-from_cal = tkcal.DateEntry(frame_controls, selectmode='day')
-from_cal_lab.grid(row=0, column=1, padx=20, pady=5)
+from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
+from_cal_var = tk.StringVar(value="10")
+from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
 from_cal.grid(row=1, column=1, padx=20, pady=5)
+from_cal_lab.grid(row=0, column=1, padx=20, pady=5)
 
 to_cal_lab = tk.Label(frame_controls, text='To: ', font=('Helvetica', 13))
 to_cal = tkcal.DateEntry(frame_controls, selectmode='day')
@@ -66,8 +100,18 @@ to_cal.grid(row=1, column=2, padx=20, pady=5)
 def calc(sort=None, sectors=None):
     for i in tv.get_children():
         tv.delete(i)
-    start = from_cal.get_date().strftime("%Y-%m-%d")
-    end = to_cal.get_date().strftime("%Y-%m-%d")
+    end = to_cal.get_date()
+    days_delta = int(from_cal.get())
+    count = 0
+    temp_date = end
+    while count < days_delta:
+        temp_date = temp_date - dt.timedelta(days=1)
+        temp_day = temp_date.strftime("%A")
+        if temp_day not in ["Saturday", "Sunday"]:
+            count += 1
+    start = temp_date.strftime("%Y-%m-%d")
+    end = end.strftime("%Y-%m-%d")
+    print(start, end)
     result = db.connect_to_sqlite(db.get_beta_and_sector, start, end)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
@@ -104,9 +148,9 @@ selected = tk.StringVar()
 def sort_beta():
     order = selected.get()
     calc(sort=order)
-r1 = ttk.Radiobutton(frame_controls, text='β high to low', value='htl', variable=selected, command=sort_beta)
+r1 = ttk.Radiobutton(frame_controls, text='Deviation high to low', value='htl', variable=selected, command=sort_beta)
 r1.grid(row=0, column=0)
-r2 = ttk.Radiobutton(frame_controls, text='β low to high', value='lth', variable=selected, command=sort_beta)
+r2 = ttk.Radiobutton(frame_controls, text='Deviation low to high', value='lth', variable=selected, command=sort_beta)
 r2.grid(row=1, column=0)
 
 checkbox_frame = tk.Frame(root)
