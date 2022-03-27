@@ -1,4 +1,4 @@
-from ttkwidgets.autocomplete import AutocompleteEntry
+#from ttkwidgets.autocomplete import AutocompleteEntry
 from tkinter import ttk
 import tkinter as tk
 import database as db
@@ -93,13 +93,14 @@ def search(name, index, mode):
     calc()
     srcipt = script_var.get()
     for i in tv.get_children():
-        if not tv.item(i)["values"][0].startswith(srcipt):
+        if not tv.item(i)["values"][0].startswith(srcipt.upper()):
             tv.delete(i)
 
-with open("stocks.txt", "r") as f:
-    options = [x.strip() for x in f]
+#with open("stocks.txt", "r") as f:
+#    options = [x.strip() for x in f]
 
-script_search = AutocompleteEntry(frame_search, textvariable=script_var, width=10, completevalues=options,font=FONT)
+#script_search = AutocompleteEntry(frame_search, textvariable=script_var, width=10, completevalues=options,font=FONT)
+script_search = ttk.Entry(frame_search, textvariable=script_var)
 script_search.pack(side = tk.LEFT, padx=10, pady=10)
 script_var.trace_add("write", search)
 
