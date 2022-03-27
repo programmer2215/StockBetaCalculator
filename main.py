@@ -1,3 +1,4 @@
+from ttkwidgets.autocomplete import AutocompleteEntry
 from tkinter import ttk
 import tkinter as tk
 import database as db
@@ -15,6 +16,8 @@ root = tk.Tk()
 root.title("Beta Calculator")
 
 LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "ADANIPORTS")
+LAST_UPDATED_OBJ = datetime.strptime(LAST_UPDATED, "%Y-%m-%d")
+FONT = ('Helvetica', 13)
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
@@ -66,8 +69,7 @@ def copy_open():
 
 def copy_row():
     cur_row = tv.focus()
-    values = [str(value) for value in tv.item(cur_row)['values']]
-    string = ' '.join(values)
+    string = f"{tv.item(cur_row)['values'][0]},{tv.item(cur_row)['values'][2]}"
     pyperclip.copy(string)
 
 
@@ -82,16 +84,36 @@ right_click_menu.add_command(label="Copy Beta Value", command=copy_beta)
 right_click_menu.add_command(label="Copy Open Price Value", command=copy_open)
 right_click_menu.add_command(label="Copy Row", command=copy_row)
 
-frame_controls = tk.Frame(frame_top)
-frame_controls.pack(padx=5, pady=10)
+frame_search = tk.Frame(frame_top)
+frame_search.pack()
 
-from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
+script_var = tk.StringVar(frame_search)
+
+def search(name, index, mode):
+    calc()
+    srcipt = script_var.get()
+    for i in tv.get_children():
+        if not tv.item(i)["values"][0].startswith(srcipt):
+            tv.delete(i)
+
+with open("stocks.txt", "r") as f:
+    options = [x.strip() for x in f]
+
+script_search = AutocompleteEntry(frame_search, textvariable=script_var, width=10, completevalues=options,font=FONT)
+script_search.pack(side = tk.LEFT, padx=10, pady=10)
+script_var.trace_add("write", search)
+
+
+frame_controls = tk.Frame(frame_top)
+frame_controls.pack(padx=30, pady=30)
+
+from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=FONT)
 from_cal_var = tk.StringVar(value="10")
 from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
 from_cal.grid(row=1, column=1, padx=20, pady=5)
 from_cal_lab.grid(row=0, column=1, padx=20, pady=5)
 
-to_cal_lab = tk.Label(frame_controls, text='To: ', font=('Helvetica', 13))
+to_cal_lab = tk.Label(frame_controls, text='To: ', font=FONT)
 to_cal = tkcal.DateEntry(frame_controls, selectmode='day')
 to_cal_lab.grid(row=0, column=2, padx=20, pady=5)
 to_cal.grid(row=1, column=2, padx=20, pady=5)

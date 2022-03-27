@@ -1,9 +1,9 @@
-from re import L
 import sqlite3 as sql
 from nsepy import get_history
 from datetime import datetime
 from scipy.stats import  linregress
 import csv
+
 
 def connect_to_sqlite(func, *args):
     '''Sqlite Connection Wrapper'''
