@@ -13,7 +13,7 @@ print("PLEASE WAIT SOFTWARE IS DOWNLOADING THE LATEST DATA...")
 db.connect_to_sqlite(db.update_data, today)
 print("SUCCESSFULLY LOADED")
 root = tk.Tk()
-root.title("Beta Calculator")
+root.title("Deviation Calculator")
 
 LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "ADANIPORTS")
 LAST_UPDATED_OBJ = datetime.strptime(LAST_UPDATED, "%Y-%m-%d")
