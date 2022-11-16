@@ -5,11 +5,10 @@ from scipy.stats import  linregress
 import csv
 
 def connect_to_sqlite(func, *args):
-    '''Sqlite Connection Wrapper...
-    not the best , whatever It works (ig)'''
+    '''Sqlite Connection Wrapper'''
     conn = sql.connect('StocksData.sqlite')
     cur = conn.cursor()
-    return_val = func(cur, *args) # if it even returns something...
+    return_val = func(cur, *args)
     conn.commit()
     conn.close()
 
