@@ -3,6 +3,9 @@ calculates [Beta value](https://www.investopedia.com/terms/b/beta.asp) of all [N
 
 ***Note: This Project curently works only for NSE Securities***
 
+![image](https://user-images.githubusercontent.com/56450558/202885176-0ffb3655-f325-42ef-a8de-5e3ee4a25a4c.png)
+
+
 <h2>Installation:</h2>
 
  - Clone this repo: `git clone https://github.com/programmer2215/StockBetaCalculator.git`
