@@ -9,7 +9,7 @@ calculates [Beta value](https://www.investopedia.com/terms/b/beta.asp) of all [N
 <h2>Installation:</h2>
 
  - Clone this repo: `git clone https://github.com/programmer2215/StockBetaCalculator.git`
- - install requirements `python -m pip install -r requirements.txt` (command is platform dependent)
+ - install requirements `python -m pip install -r requirements.txt` (command maybe platform dependent)
  - Run `database.py` in a terminal
  - Select Date Range to get records for all stocks
  - Run `main.py` to start the app
