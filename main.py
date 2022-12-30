@@ -4,15 +4,17 @@ import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
 import datetime as dt
+import pyperclip
+import os
 
 today = datetime.today().strftime("%Y-%m-%d")
 print(today)
-db.connect_to_sqlite(db.update_data, today)
+db.update_data(today)
 
 root = tk.Tk()
 root.title("Beta Calculator")
 
-LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
+LAST_UPDATED = db.get_last_date("NIFTY50")
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
@@ -37,32 +39,70 @@ if root.getvar('tk_patchLevel')=='8.6.9': #and OS_Name=='nt':
 
 
 frame_top = tk.Frame(root)
-frame_top.pack(padx=5, pady=20)
+frame_top.pack(padx=5, pady=5)
 
 tv = ttk.Treeview(
     frame_top, 
     columns=(1, 2, 3), 
     show='headings', 
-    height=10)
+    height=7)
 tv.pack()
 
 tv.heading(1, text='Security')
 tv.heading(2, text='Sector')
 tv.heading(3, text='Beta (β)')
 
+def copy_security():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][0])
+
+def copy_beta():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][2])
+
+def copy_open():
+    cur_row = tv.focus()
+    pyperclip.copy(tv.item(cur_row)['values'][1])
+
+def copy_row():
+    cur_row = tv.focus()
+    string = f"{tv.item(cur_row)['values'][0]},{tv.item(cur_row)['values'][2]}"
+    pyperclip.copy(string)
+
+def export():
+    with open("data.csv", "w", newline="") as f:
+        for i in tv.get_children():
+            data = tv.item(i)['values']
+            f.write(f"{data[0]},{data[1]},{data[2]}")
+            f.write("\n")
+    os.startfile('data.csv')
+
+
+def my_popup(e):
+    right_click_menu.tk_popup(e.x_root, e.y_root)
+
+tv.bind("<Button-3>", my_popup)
+
+right_click_menu = tk.Menu(tv, tearoff=False)
+right_click_menu.add_command(label="Copy Security", command=copy_security)
+right_click_menu.add_command(label="Copy Beta Value", command=copy_beta)
+right_click_menu.add_command(label="Copy Open Price Value", command=copy_open)
+right_click_menu.add_command(label="Copy Row", command=copy_row)
+right_click_menu.add_command(label="Export to Excel", command=export)
+
 frame_controls = tk.Frame(frame_top)
-frame_controls.pack(padx=5, pady=10)
+frame_controls.pack(padx=5)
 
 from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
-from_cal_var = tk.StringVar(value="10")
+from_cal_var = tk.StringVar(value="5")
 from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
-from_cal.grid(row=1, column=1, padx=20, pady=5)
-from_cal_lab.grid(row=0, column=1, padx=20, pady=5)
+from_cal.grid(row=1, column=1, padx=20)
+from_cal_lab.grid(row=0, column=1, padx=20)
 
 to_cal_lab = tk.Label(frame_controls, text='Last Date: ', font=('Helvetica', 13))
 to_cal = tkcal.DateEntry(frame_controls, selectmode='day')
-to_cal_lab.grid(row=0, column=2, padx=20, pady=5)
-to_cal.grid(row=1, column=2, padx=20, pady=5)
+to_cal_lab.grid(row=0, column=2, padx=20)
+to_cal.grid(row=1, column=2, padx=20)
 
 
 
@@ -82,7 +122,7 @@ def calc(sort=None, sectors=None):
     start = temp_date.strftime("%Y-%m-%d")
     end = end.strftime("%Y-%m-%d")
     print(start, end)
-    result = db.connect_to_sqlite(db.get_beta_and_sector, start, end)
+    result = db.get_beta_and_sector(start, end)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
@@ -147,7 +187,7 @@ for i, sector in enumerate(SECTORS):
     l.grid(column=column, row=row, padx=5, sticky=tk.W)
     row += 1
 show_row_frame = tk.Frame(root)
-show_row_frame.pack(pady=10)
+show_row_frame.pack()
 
 show_rows_lab = tk.Label(show_row_frame, text="Show Rows:")
 show_rows_lab.pack()
