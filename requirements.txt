@@ -1,3 +1,4 @@
-nsepy==0.8
-scipy==1.7.1
-tkcalendar==1.6.1
+nsepy
+pyperclip
+scipy
+tkcalendar

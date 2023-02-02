@@ -3,18 +3,22 @@ import tkinter as tk
 import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
+import calendar
 import datetime as dt
 import pyperclip
+import json
 import os
 
 today = datetime.today().strftime("%Y-%m-%d")
 print(today)
-db.update_data(today)
+db.connect_to_sqlite(db.update_data, today)
+with open('lotSize.json') as f:
+    LOT_SIZES = json.load(f)
 
 root = tk.Tk()
 root.title("Beta Calculator")
 
-LAST_UPDATED = db.get_last_date("NIFTY50")
+LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
@@ -70,6 +74,7 @@ def copy_row():
     pyperclip.copy(string)
 
 def export():
+    
     with open("data.csv", "w", newline="") as f:
         for i in tv.get_children():
             data = tv.item(i)['values']
@@ -77,6 +82,39 @@ def export():
             f.write("\n")
     os.startfile('data.csv')
 
+def but_export():
+    
+    with open("data2.csv", "w", newline="") as f:
+        f.write("Scripts\n")
+        for i in tv.get_children()[:4]:
+            data = tv.item(i)['values']
+            lot_size = LOT_SIZES[data[0]]
+            f.write(f"{data[0]},{lot_size}\n")
+            
+    os.startfile('data2.csv')
+
+def but_export_monthly():
+    
+    DATA = []
+    date = to_cal.get_date()
+    dates_of_month = calendar.Calendar.itermonthdates(calendar.Calendar(),date.year, date.month)
+    for dat in dates_of_month:
+        if dat.month == date.month and dat.weekday() < 5:
+            data = calc(show=False, end=dat, days_delta=20, sort='htl')[:2]
+            
+            for i in range(2):
+                if i == 0:                    
+                    DATA.append([dat.strftime('%d-%b-%Y'), data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
+                else:
+                    DATA.append(['', data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
+    
+    with open("data3.csv", "w", newline="") as f:
+        f.write("Scripts\n")
+        f.write("Date,Stock,Beta\n")
+        for i in DATA:
+            f.write(f"{','.join(i)}\n")
+            
+    os.startfile('data3.csv')
 
 def my_popup(e):
     right_click_menu.tk_popup(e.x_root, e.y_root)
@@ -94,7 +132,7 @@ frame_controls = tk.Frame(frame_top)
 frame_controls.pack(padx=5)
 
 from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
-from_cal_var = tk.StringVar(value="5")
+from_cal_var = tk.StringVar(value="20")
 from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
 from_cal.grid(row=1, column=1, padx=20)
 from_cal_lab.grid(row=0, column=1, padx=20)
@@ -106,12 +144,15 @@ to_cal.grid(row=1, column=2, padx=20)
 
 
 
-def calc(sort=None, sectors=None):
+def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
     for i in tv.get_children():
         tv.delete(i)
     
-    end = to_cal.get_date()
-    days_delta = int(from_cal.get())
+    if not end:        
+        end = to_cal.get_date()
+
+    if not days_delta:        
+        days_delta = int(from_cal.get())
     count = 0
     temp_date = end
     while count < days_delta:
@@ -121,8 +162,8 @@ def calc(sort=None, sectors=None):
             count += 1
     start = temp_date.strftime("%Y-%m-%d")
     end = end.strftime("%Y-%m-%d")
-    print(start, end)
-    result = db.get_beta_and_sector(start, end)
+    
+    result = db.connect_to_sqlite(db.get_beta_and_sector, start, end)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
@@ -147,8 +188,11 @@ def calc(sort=None, sectors=None):
         result = sorted_by_sector
                 
 
-    for i,row in enumerate(result):
-        tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2)))
+    if show:
+        for i,row in enumerate(result):
+            tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2)))
+    else:
+        return result
 
 
 button = ttk.Button(frame_controls, text="Calculate", command=calc)
@@ -195,5 +239,10 @@ show_rows_var = tk.StringVar(value="1")
 show_rows = ttk.Entry(show_row_frame, textvariable=show_rows_var)
 show_rows.pack()
 
+export_button = ttk.Button(root, text="Export", command=but_export)
+export_button.pack(pady= 5)
+
+export_button = ttk.Button(root, text="Export Results For Month", command=but_export_monthly)
+export_button.pack(pady= 5)
 
 root.mainloop()
