@@ -103,11 +103,7 @@ def but_export_monthly():
             data = calc(show=False, end=dat, days_delta=20, sort='htl')[:2]
             
             for i in range(2):
-                if i == 0:                    
-                    DATA.append([dat.strftime('%d-%b-%Y'), data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
-                else:
-                    DATA.append(['', data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
-    
+                DATA.append([dat.strftime('%d-%b-%Y'), data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
     with open("data3.csv", "w", newline="") as f:
         f.write("Scripts\n")
         f.write("Date,Stock,Beta\n")
