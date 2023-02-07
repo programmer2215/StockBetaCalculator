@@ -9,11 +9,11 @@ import pyperclip
 import json
 import os
 
+with open('lotSize.json') as f:
+    LOT_SIZES = json.load(f)
 today = datetime.today().strftime("%Y-%m-%d")
 print(today)
 db.connect_to_sqlite(db.update_data, today)
-with open('lotSize.json') as f:
-    LOT_SIZES = json.load(f)
 
 root = tk.Tk()
 root.title("Beta Calculator")
@@ -83,7 +83,6 @@ def export():
     os.startfile('data.csv')
 
 def but_export():
-    
     with open("data2.csv", "w", newline="") as f:
         f.write("Scripts\n")
         for i in tv.get_children()[:4]:
@@ -100,13 +99,14 @@ def but_export_monthly():
     dates_of_month = calendar.Calendar.itermonthdates(calendar.Calendar(),date.year, date.month)
     for dat in dates_of_month:
         if dat.month == date.month and dat.weekday() < 5:
-            data = calc(show=False, end=dat, days_delta=20, sort='htl')[:2]
+            data = calc(show=False, end=dat, days_delta=20, sort='htl')[:int(export_rows_var.get())]
             
-            for i in range(2):
-                DATA.append([dat.strftime('%d-%b-%Y'), data[i]['Symbol'], str(data[i]['Beta']), LOT_SIZES[data[i]['Symbol']]])
+            for i in data:
+                DATA.append([dat.strftime('%d-%b-%Y'), i['Symbol'], str(i['Beta']), LOT_SIZES[i['Symbol']]])
+
+    
     with open("data3.csv", "w", newline="") as f:
-        f.write("Scripts\n")
-        f.write("Date,Stock,Beta\n")
+        f.write("Date,Stock,Beta,Lotsize\n")
         for i in DATA:
             f.write(f"{','.join(i)}\n")
             
@@ -238,7 +238,15 @@ show_rows.pack()
 export_button = ttk.Button(root, text="Export", command=but_export)
 export_button.pack(pady= 5)
 
-export_button = ttk.Button(root, text="Export Results For Month", command=but_export_monthly)
-export_button.pack(pady= 5)
+export_frame = tk.Frame(root)
+export_frame.pack(pady= 5)
+
+export_rows_lab = tk.Label(export_frame, text="Show Rows:")
+export_rows_lab.grid(row=0, column=0, pady= 5, padx=10)
+export_rows_var = tk.StringVar(value="5")
+export_rows = ttk.Entry(export_frame, textvariable=export_rows_var)
+export_rows.grid(row=1, column=0, pady= 5, padx=10)
+export_button_mon = ttk.Button(export_frame, text="Export Results For Month", command=but_export_monthly)
+export_button_mon.grid(row=0, column=1, rowspan=2, pady= 5)
 
 root.mainloop()
