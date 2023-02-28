@@ -98,8 +98,10 @@ def but_export_monthly():
     date = to_cal.get_date()
     dates_of_month = calendar.Calendar.itermonthdates(calendar.Calendar(),date.year, date.month)
     for dat in dates_of_month:
+        if dat > date:
+            break
         if dat.month == date.month and dat.weekday() < 5:
-            data = calc(show=False, end=dat, days_delta=20, sort='htl')[:int(export_rows_var.get())]
+            data = calc(show=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl')[:int(export_rows_var.get())]
             
             for i in data:
                 DATA.append([dat.strftime('%d-%b-%Y'), i['Symbol'], str(i['Beta']), LOT_SIZES[i['Symbol']]])
@@ -128,7 +130,7 @@ frame_controls = tk.Frame(frame_top)
 frame_controls.pack(padx=5)
 
 from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
-from_cal_var = tk.StringVar(value="20")
+from_cal_var = tk.StringVar(value="5")
 from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
 from_cal.grid(row=1, column=1, padx=20)
 from_cal_lab.grid(row=0, column=1, padx=20)
@@ -146,19 +148,26 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
     
     if not end:        
         end = to_cal.get_date()
+    if end.weekday() == 0:
+        end = end - dt.timedelta(days=3)
+    else:
+        end = end - dt.timedelta(days=1)
 
     if not days_delta:        
         days_delta = int(from_cal.get())
+        print(days_delta)
     count = 0
     temp_date = end
-    while count < days_delta:
-        temp_date = temp_date - dt.timedelta(days=1)
+    while count < days_delta - 1:
         temp_day = temp_date.strftime("%A")
         if temp_day not in ["Saturday", "Sunday"]:
             count += 1
+        temp_date = temp_date - dt.timedelta(days=1)
+        
+        
     start = temp_date.strftime("%Y-%m-%d")
-    end = end.strftime("%Y-%m-%d")
-    
+    end = end.strftime("%Y-%m-%d") 
+    print(start, end)
     result = db.connect_to_sqlite(db.get_beta_and_sector, start, end)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
@@ -226,27 +235,24 @@ for i, sector in enumerate(SECTORS):
     l = ttk.Checkbutton(checkbox_frame, text=sector, variable=checkbutton_vars[sector], command=sort_sector)
     l.grid(column=column, row=row, padx=5, sticky=tk.W)
     row += 1
-show_row_frame = tk.Frame(root)
-show_row_frame.pack()
-
-show_rows_lab = tk.Label(show_row_frame, text="Show Rows:")
-show_rows_lab.pack()
-show_rows_var = tk.StringVar(value="1")
-show_rows = ttk.Entry(show_row_frame, textvariable=show_rows_var)
-show_rows.pack()
-
-export_button = ttk.Button(root, text="Export", command=but_export)
-export_button.pack(pady= 5)
-
 export_frame = tk.Frame(root)
 export_frame.pack(pady= 5)
 
+show_rows_lab = tk.Label(export_frame, text="Show Rows:")
+show_rows_lab.grid(row=0, column=0 , padx=5, pady=5)
+show_rows_var = tk.StringVar(value="1")
+show_rows = ttk.Entry(export_frame, textvariable=show_rows_var)
+show_rows.grid(row=1, column=0 , padx=5, pady=5)
+
+export_button = ttk.Button(export_frame, text="Export", command=but_export)
+export_button.grid(row=2, column=0 , padx=5, pady=8)
+
 export_rows_lab = tk.Label(export_frame, text="Show Rows:")
-export_rows_lab.grid(row=0, column=0, pady= 5, padx=10)
+export_rows_lab.grid(row=0, column=1, pady= 5, padx=10)
 export_rows_var = tk.StringVar(value="5")
 export_rows = ttk.Entry(export_frame, textvariable=export_rows_var)
-export_rows.grid(row=1, column=0, pady= 5, padx=10)
+export_rows.grid(row=1, column=1, padx=40)
 export_button_mon = ttk.Button(export_frame, text="Export Results For Month", command=but_export_monthly)
-export_button_mon.grid(row=0, column=1, rowspan=2, pady= 5)
+export_button_mon.grid(row=2, column=1, pady = 5)
 
 root.mainloop()
