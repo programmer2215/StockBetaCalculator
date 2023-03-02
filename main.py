@@ -3,7 +3,9 @@ import tkinter as tk
 import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
+import datetime as dt
 import calendar
+import pandas
 import datetime as dt
 import pyperclip
 import json
@@ -19,6 +21,78 @@ root = tk.Tk()
 root.title("Beta Calculator")
 
 LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
+
+class FilteredBeta(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master=master)
+        self.title("Filtered Stocks")
+        self.frame_top = tk.Frame(self)
+        self.frame_top.pack(padx=5, pady=5)
+
+        self.tv = ttk.Treeview(
+            self.frame_top, 
+            columns=(1, 2, 3), 
+            show='headings', 
+            height=7)
+        self.tv.pack()
+
+        self.tv.heading(1, text='Security')
+        self.tv.heading(2, text='Sector')
+        self.tv.heading(3, text='Beta (β)')
+        self.frame_controls = tk.Frame(self.frame_top)
+        self.frame_controls.pack(padx=5)
+
+        self.from_cal_lab = tk.Label(self.frame_controls, text='No. of Days: ', font=('Helvetica', 13))
+        self.from_cal_var = tk.StringVar(value="20")
+        self.from_cal = ttk.Entry(self.frame_controls, textvariable=self.from_cal_var)
+        self.from_cal.grid(row=1, column=0, padx=20)
+        self.from_cal_lab.grid(row=0, column=0, padx=20)
+
+        self.act_to_cal_lab = tk.Label(self.frame_controls, text='From: ', font=('Helvetica', 13))
+        self.act_to_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
+        self.act_to_cal_lab.grid(row=0, column=1, padx=20)
+        self.act_to_cal.grid(row=1, column=1, padx=20)
+
+        self.to_cal_lab = tk.Label(self.frame_controls, text='To: ', font=('Helvetica', 13))
+        self.to_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
+        self.to_cal_lab.grid(row=0, column=2, padx=20)
+        self.to_cal.grid(row=1, column=2, padx=20)
+
+        self.button = ttk.Button(self.frame_controls, text="Calculate", command=self.show)
+        self.button.grid(row=0, column=3, padx=20, rowspan=2)
+    
+    def show(self):
+        for i in self.tv.get_children():
+            self.tv.delete(i)
+        result = self.filtered()
+        for i,row in enumerate(result):
+            self.tv.insert(parent='', index=i, iid=i, values=row)
+    def filtered(self):
+        DATA = []
+        stocks_list = []
+        from_date = self.act_to_cal.get_date()
+        date = self.to_cal.get_date()
+        delta = int(self.from_cal_var.get())
+        dates_of_month = pandas.date_range(from_date, date)
+        for dat in dates_of_month:
+            if dat >= date:
+                break
+            data = calc(show=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl')[:int(export_rows_var.get())]
+            
+            for i in data:
+                stocks_list.append(i['Symbol'])
+
+        data = calc(show=False, end=dat, days_delta=delta, sort='htl')[:int(export_rows_var.get())]
+        for row in data:
+            if row["Symbol"] not in stocks_list:
+                DATA.append((row["Symbol"], row["Sector"], round(row["Beta"], 2)))
+
+        print(stocks_list)
+        print(list(dates_of_month))
+        return DATA
+
+new_button = ttk.Button(root, text="NEW FILTER", command=lambda : FilteredBeta(root))
+new_button.pack(pady=12)
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
@@ -96,7 +170,8 @@ def but_export_monthly():
     
     DATA = []
     date = to_cal.get_date()
-    dates_of_month = calendar.Calendar.itermonthdates(calendar.Calendar(),date.year, date.month)
+    num_days = calendar.monthrange(date.year, date.month)[1]
+    dates_of_month = [dt.date(date.year, date.month, day) for day in range(1, num_days+1)] 
     for dat in dates_of_month:
         if dat > date:
             break
@@ -202,6 +277,7 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
 
 button = ttk.Button(frame_controls, text="Calculate", command=calc)
 button.grid(row=0, column=3, padx=20, rowspan=2)
+
 
 selected = tk.StringVar()
 def sort_beta():
