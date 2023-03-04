@@ -101,13 +101,11 @@ def get_beta_and_sector(cur, start, end):
     cur.execute(SQL)
     percent_changes_nifty = []
     close_data = cur.fetchall()
-    print(close_data)
+    
     sector_data = get_sector_info()
-    print("NIFTY")
     for i in range(0, len(close_data) - 1):
         per_change = ((float(close_data[i+1][0]) - float(close_data[i][0]))/float(close_data[i][0])) * 100
         percent_changes_nifty.append(per_change)
-        print(close_data[i][1], close_data[i][0], per_change)
     with open("stocks.txt", "r") as f:
         for stock in f:
             percent_changes_stock = []
@@ -115,11 +113,11 @@ def get_beta_and_sector(cur, start, end):
             SQL = f"""SELECT Close, Date FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}";"""
             cur.execute(SQL)
             close_data = cur.fetchall()
-            print(stock)
+
             for i in range(0, len(close_data)-1):
                 per_change = ((float(close_data[i+1][0]) - float(close_data[i][0]))/float(close_data[i][0])) * 100
                 percent_changes_stock.append(per_change)
-                print(close_data[i][1], close_data[i][0], per_change)
+
             beta = calculate_beta(percent_changes_nifty, percent_changes_stock)
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
     return results
