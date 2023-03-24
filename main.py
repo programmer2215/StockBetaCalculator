@@ -23,6 +23,63 @@ root.title("Beta Calculator")
 
 LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
 
+class PreOpenData(tk.Toplevel):
+    def __init__(self, master):
+        super().__init__(master=master)
+        self.title("Pre Open")
+        
+        self.status_var = tk.StringVar()
+        self.status_lab = tk.Label(self, textvariable=self.status_var, font=('Helvetica', 13))
+        self.status_lab.pack(pady=5)
+
+        self.frame_top = tk.Frame(self)
+        self.frame_top.pack(padx=5, pady=5)
+
+        self.tv = ttk.Treeview(
+            self.frame_top, 
+            columns=(1, 2, 3), 
+            show='headings', 
+            height=7)
+        self.tv.pack()
+
+        self.tv.heading(1, text='Security')
+        self.tv.heading(2, text='Sector')
+        self.tv.heading(3, text='Prc. Cng. %')
+        self.frame_controls = tk.Frame(self.frame_top)
+        self.frame_controls.pack(padx=5)
+
+        self.selected = tk.StringVar()
+        
+        self.r1 = ttk.Radiobutton(self.frame_controls, text='high to low', value='htl', variable=self.selected)
+        self.r1.grid(row=0, column=0)
+        self.r2 = ttk.Radiobutton(self.frame_controls, text='low to high', value='lth', variable=self.selected,state='selected')
+        self.r2.grid(row=1, column=0)
+
+        self.selected.set("htl")
+
+        
+
+        self.date_cal_lab = tk.Label(self.frame_controls, text='To: ', font=('Helvetica', 13))
+        self.date_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
+        self.date_cal_lab.grid(row=0, column=1, padx=20)
+        self.date_cal.grid(row=1, column=1, padx=20)
+
+        self.button = ttk.Button(self.frame_controls, text="Show", command=self.show)
+        self.button.grid(row=0, column=2, padx=20, rowspan=2)
+
+    def show(self):
+        for i in self.tv.get_children():
+                self.tv.delete(i)
+        date = self.date_cal.get_date().strftime("%Y-%m-%d")
+        DATA = db.fetch_preopen(date, sort=self.selected.get())
+        for i,row in enumerate(DATA):
+            self.tv.insert(parent='', index=i, iid=i, values=row)
+        
+        
+
+new_button = ttk.Button(root, text="PRE OPEN", command=lambda : PreOpenData(root))
+new_button.pack(pady=2)
+
 class FilteredBeta(tk.Toplevel):
     def __init__(self, master):
         super().__init__(master=master)
@@ -80,7 +137,22 @@ class FilteredBeta(tk.Toplevel):
         self.button.grid(row=0, column=5, padx=20, rowspan=2)
         self.export_button = ttk.Button(self, text="Export", command=self.export)
         self.export_button.pack(pady=15)
+        self.monthly_export_button = ttk.Button(self, text="Monthly Export", command=self.but_export_monthly)
+        self.monthly_export_button.pack(pady=15)
 
+        self.tv.bind("<Button-3>", self.my_popup)
+
+        self.right_click_menu = tk.Menu(self.tv, tearoff=False)
+        self.right_click_menu.add_command(label="Copy Security", command=self.copy_security)
+        
+
+    def copy_security(self):
+        cur_row = self.tv.focus()
+        pyperclip.copy(self.tv.item(cur_row)['values'][0])
+
+    def my_popup(self, e):
+        self.right_click_menu.tk_popup(e.x_root, e.y_root)
+        
     def status(self, msg="", color="black"):
         self.status_var.set(msg)
         self.status_lab.config(fg=color)
@@ -115,14 +187,45 @@ class FilteredBeta(tk.Toplevel):
         except Exception as e:
             print(traceback.format_exc())
             self.status("Something went wrong", "red")
+
+    def but_export_monthly(self):
+    
+        DATA = []
+        date = self.to_cal.get_date()
+        num_days = calendar.monthrange(date.year, date.month)[1]
+        dates_of_month = [dt.date(date.year, date.month, day) for day in range(1, num_days+1)] 
+        delta = 0
+        for dat in dates_of_month:
+            if dat > date:
+                break
+            if dat.month == date.month and dat.weekday() < 5:
+                data = self.filtered(dat, delta)[0]
+                delta += 1
+
+                for i in data:
+                    DATA.append([dat.strftime('%d-%b-%Y'), i[0], str(i[2]), LOT_SIZES[i[0]]])
+
+        
+        with open("filtered_data.csv", "w", newline="") as f:
+            f.write("Date,Stock,Beta,Lotsize\n")
+            for i in DATA:
+                f.write(f"{','.join(i)}\n")
+                
+        os.startfile('filtered_data.csv')
         
 
-    def filtered(self):
+    def filtered(self, date=None, start=None):
         DATA = []
         stocks_list = []
         ranks = int(self.ranks_var.get())
-        date = pandas.Timestamp(self.to_cal.get_date())
-        start = int(self.from_cal_var.get())
+        if date:            
+            date = pandas.Timestamp(date)
+        else:
+            date = self.to_cal.get_date()
+        
+        if start == None:
+            start = int(self.from_cal_var.get())
+        
         count = 0
         temp_date = date
         while count < start:
@@ -131,11 +234,13 @@ class FilteredBeta(tk.Toplevel):
                 count += 1
         from_date = pandas.Timestamp(temp_date)
         delta = int(self.delta_var.get())
-        extra = self.ext_cal.get_date()
+        extra = pandas.Timestamp(self.ext_cal.get_date())
+        print(extra, from_date)
         if extra > from_date:
+            print(extra, from_date)
             return None
 
-        dates_of_month = [pandas.Timestamp(extra)] + list(pandas.date_range(from_date, date))
+        dates_of_month = [extra] + list(pandas.date_range(from_date, date))
         export_exclude = []
         for dat in dates_of_month:
             if dat >= date:

@@ -1,6 +1,7 @@
 import sqlite3 as sql
 from nsepy import get_history
 from datetime import datetime
+import datetime as dt
 from scipy.stats import  linregress
 import csv
 
@@ -43,7 +44,7 @@ def get_sector_info():
 def valid(cur_date, last_date):
     return datetime.strptime(cur_date, "%Y-%m-%d") > datetime.strptime(last_date, "%Y-%m-%d")
 
-def ON_CREATE(cur, start, end):
+def ON_CREATE(cur : sql.Cursor, start, end):
     with open("stocks.txt") as f:
         for table_name in f:
             table_name = table_name.strip()
@@ -52,23 +53,26 @@ def ON_CREATE(cur, start, end):
             SQL = f'''
 CREATE TABLE IF NOT EXISTS "{table_name}"(
     Date DATE,
-    Close FLOAT
+    Close FLOAT,
+    Open FLOAT
 );'''
             cur.execute(SQL)
             
-            for j,k in zip(data.index, data.Close):
-                add_record(cur, table_name, j, k)
+            for j,k,l in zip(data.index, data.Close, data.Open):
+                add_record(cur, table_name, j, k, l)
             print(f"[{table_name}] up to date")
 
     index_data = getStockData("NIFTY 50", start, end, nifty=True)
     SQL = f'''
 CREATE TABLE IF NOT EXISTS NIFTY50(
     Date DATE,
-    Close FLOAT
+    Close FLOAT,
+    Open FLOAT
 );'''
     cur.execute(SQL)
-    for j,k in zip(index_data.index, index_data.Close):
-        add_record(cur, "NIFTY50", j, k)
+    
+    for j,k,l in zip(index_data.index, index_data.Close, index_data.Open):
+        add_record(cur, "NIFTY50", j, k, l)
     print("[NIFTY50] up to date")
 
 def get_last_date(cur, stock):
@@ -77,13 +81,13 @@ def get_last_date(cur, stock):
     LAST_DATE = cur.fetchone()
     return str(LAST_DATE[0])
 
-def add_record(cur, stock, date, close, cycle=False, validate=False):
+def add_record(cur, stock, date, close, open, cycle=False, validate=False):
     if validate:
         LAST_DATE = get_last_date(cur, stock)
         if not valid(date, LAST_DATE):
             return
         print("valid")
-    SQL = f"""INSERT INTO "{stock}" (Date, Close) VALUES ('{date}', '{close}');"""
+    SQL = f"""INSERT INTO "{stock}" (Date, Close, Open) VALUES ('{date}', '{close}', '{open}');"""
     cur.execute(SQL)
     if cycle:
         SQL = f"""DELETE FROM "{stock}" WHERE Date = (SELECT min(Date) FROM {stock});"""
@@ -128,14 +132,46 @@ def update_data(cur, now):
             stock = stock.strip()
             last = get_last_date(cur, stock)
             data = getStockData(stock, last, now)
-            for j,k in zip(data.index, data.Close):
-                add_record(cur, stock, str(j), k, validate=True)
+            for j,k,l in zip(data.index, data.Close, data.Open):
+                add_record(cur, stock, str(j), k, l, validate=True)
     index_data = getStockData("NIFTY 50", last, now, nifty=True)
-    for j,k in zip(index_data.index, index_data.Close):
-        add_record(cur, "NIFTY50", str(j), k, validate=True)
+    for j,k,l in zip(index_data.index, index_data.Close, index_data.Open):
+        add_record(cur, "NIFTY50", str(j), k, l, validate=True)
 
+
+def calculate_preopen(cur, stock, date):
+    date = datetime.strptime(date, "%Y-%m-%d")
+    prev_day = date - dt.timedelta(days=1)
+    while prev_day.weekday() >= 5:
+        prev_day = prev_day - dt.timedelta(days=1)
+    date, prev_day = date.strftime("%Y-%m-%d"), prev_day.strftime("%Y-%m-%d")
+    SQL = f"""SELECT Close FROM "{stock}" WHERE Date = "{date}";"""
+    cur.execute(SQL)
+    close = cur.fetchone()[0]
+
+    SQL = f"""SELECT Open FROM "{stock}" WHERE Date = "{prev_day}";"""
+    cur.execute(SQL)
+    _open= cur.fetchone()[0]
+
+    return ((_open - close) / close) * 100
+
+def fetch_preopen(date, sort='htl'):
+    SECTORS = get_sector_info()
+    DATA = []
+    print(sort)
+    with open('stocks.txt') as f:
+        for stock in f:
+            stock = stock.strip()
+            preopen = connect_to_sqlite(calculate_preopen, stock, date)
+            DATA.append((stock, SECTORS[stock], round(preopen, 2)))
+    if sort == 'htl':
+        DATA = sorted(DATA, key=lambda x:x[2], reverse=True)
+    elif sort == 'lth':
+        DATA = sorted(DATA, key=lambda x:x[2])
+    return DATA
 
 if __name__ == "__main__":
+    print(fetch_preopen("2023-03-17"))
     prompt = input("Are you sure you want to reset the data? (y/n): ")
     if prompt == "y":
         start = input("Enter Start Date (Format: YYYY-MM-DD): ")
