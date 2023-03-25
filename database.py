@@ -145,11 +145,11 @@ def calculate_preopen(cur, stock, date):
     while prev_day.weekday() >= 5:
         prev_day = prev_day - dt.timedelta(days=1)
     date, prev_day = date.strftime("%Y-%m-%d"), prev_day.strftime("%Y-%m-%d")
-    SQL = f"""SELECT Close FROM "{stock}" WHERE Date = "{date}";"""
+    SQL = f"""SELECT Close FROM "{stock}" WHERE Date = "{prev_day}";"""
     cur.execute(SQL)
     close = cur.fetchone()[0]
 
-    SQL = f"""SELECT Open FROM "{stock}" WHERE Date = "{prev_day}";"""
+    SQL = f"""SELECT Open FROM "{stock}" WHERE Date = "{date}";"""
     cur.execute(SQL)
     _open= cur.fetchone()[0]
 

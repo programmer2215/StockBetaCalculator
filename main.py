@@ -67,6 +67,11 @@ class PreOpenData(tk.Toplevel):
         self.button = ttk.Button(self.frame_controls, text="Show", command=self.show)
         self.button.grid(row=0, column=2, padx=20, rowspan=2)
 
+        self.tv.bind("<Button-3>", self.my_popup)
+
+        self.right_click_menu = tk.Menu(self.tv, tearoff=False)
+        self.right_click_menu.add_command(label="Copy Security", command=self.copy_security)
+
     def show(self):
         for i in self.tv.get_children():
                 self.tv.delete(i)
@@ -74,6 +79,13 @@ class PreOpenData(tk.Toplevel):
         DATA = db.fetch_preopen(date, sort=self.selected.get())
         for i,row in enumerate(DATA):
             self.tv.insert(parent='', index=i, iid=i, values=row)
+    
+    def copy_security(self):
+        cur_row = self.tv.focus()
+        pyperclip.copy(self.tv.item(cur_row)['values'][0])
+
+    def my_popup(self, e):
+        self.right_click_menu.tk_popup(e.x_root, e.y_root)
         
         
 
