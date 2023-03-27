@@ -12,7 +12,7 @@ def connect_to_sqlite(func):
     def connect_to_sqlite_wrapper(*args, **kwargs):
         '''Sqlite Connection Wrapper'''
         if not args or not type(args[0]) == sql.Cursor:
-            conn = sql.connect('Data.db')
+            conn = sql.connect('StocksData.sqlite')
             cur = conn.cursor()
             return_val = func(cur, *args, **kwargs)
             conn.commit()
@@ -49,7 +49,7 @@ def get_sector_info():
 
         
 
-def valid(cur_date, last_date):
+def valid_date(cur_date, last_date):
     return datetime.strptime(cur_date, "%Y-%m-%d") > datetime.strptime(last_date, "%Y-%m-%d")
 
 
@@ -58,8 +58,6 @@ def ON_CREATE(cur : sql.Cursor, start, end):
     with open("stocks.txt") as f:
         for table_name in f:
             table_name = table_name.strip()
-            data = getStockData(table_name, start, end)
-            
             SQL = f'''
 CREATE TABLE IF NOT EXISTS "{table_name}"(
     Date DATE,
@@ -68,11 +66,9 @@ CREATE TABLE IF NOT EXISTS "{table_name}"(
 );'''
             cur.execute(SQL)
             
-            for j,k,l in zip(data.index, data.Close, data.Open):
-                add_record(cur, table_name, j, k, l)
-            print(f"[{table_name}] up to date")
-
-    index_data = getStockData("NIFTY 50", start, end, nifty=True)
+            
+    
+    
     SQL = f'''
 CREATE TABLE IF NOT EXISTS NIFTY50(
     Date DATE,
@@ -81,9 +77,7 @@ CREATE TABLE IF NOT EXISTS NIFTY50(
 );'''
     cur.execute(SQL)
     
-    for j,k,l in zip(index_data.index, index_data.Close, index_data.Open):
-        add_record(cur, "NIFTY50", j, k, l)
-    print("[NIFTY50] up to date")
+    update_data(end, start_date=start)
 
 @connect_to_sqlite
 def get_last_date(cur, stock):
@@ -99,7 +93,7 @@ def get_last_date(cur, stock):
 def add_record(cur, stock, date, close, open, cycle=False, validate=False):
     if validate:
         LAST_DATE = get_last_date(cur, stock)
-        if not valid(date, LAST_DATE):
+        if not valid_date(date, LAST_DATE):
             return
         
     SQL = f"""INSERT INTO "{stock}" (Date, Close, Open) VALUES ('{date}', '{close}', '{open}');"""
@@ -142,18 +136,35 @@ def get_beta_and_sector(cur, start, end):
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
     return results
 
+
+
 @connect_to_sqlite
-def update_data(cur, now):
+def update_data(cur, now, start_date=None):
+    if not start_date:
+        last = get_last_date(cur, "NIFTY50")
+        if not valid_date(now, last):
+            print("Data Up to Date")
+            return
     with open("stocks.txt") as f:
         for stock in f:
             stock = stock.strip()
-            last = get_last_date(cur, stock)
+            
+            if start_date:
+                last = start_date
+                validate = False
+            else:
+                last = get_last_date(cur, stock)
+                validate = True
+                
             data = getStockData(stock, last, now)
             for j,k,l in zip(data.index, data.Close, data.Open):
-                add_record(cur, stock, str(j), k, l, validate=True)
+                add_record(cur, stock, str(j), k, l, validate=validate)
+            print(f"[{stock}] updated")
+    
     index_data = getStockData("NIFTY 50", last, now, nifty=True)
     for j,k,l in zip(index_data.index, index_data.Close, index_data.Open):
-        add_record(cur, "NIFTY50", str(j), k, l, validate=True)
+        add_record(cur, "NIFTY50", str(j), k, l, validate=validate)
+    print(f"[NIFTY 50] updated")
 
 
 @connect_to_sqlite
@@ -189,7 +200,6 @@ def fetch_preopen(date, sort='htl'):
     return DATA
 
 if __name__ == "__main__":
-    print(fetch_preopen("2023-03-17"))
     prompt = input("Are you sure you want to reset the data? (y/n): ")
     if prompt == "y":
         start = input("Enter Start Date (Format: YYYY-MM-DD): ")
