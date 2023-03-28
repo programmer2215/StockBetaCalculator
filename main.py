@@ -16,12 +16,12 @@ with open('lotSize.json') as f:
     LOT_SIZES = json.load(f)
 today = datetime.today().strftime("%Y-%m-%d")
 print(today)
-db.connect_to_sqlite(db.update_data, today)
+db.update_data(today)
 
 root = tk.Tk()
 root.title("Beta Calculator")
 
-LAST_UPDATED = db.connect_to_sqlite(db.get_last_date, "NIFTY50")
+LAST_UPDATED = db.get_last_date("NIFTY50")
 
 class PreOpenData(tk.Toplevel):
     def __init__(self, master):
@@ -430,7 +430,7 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
     start = temp_date.strftime("%Y-%m-%d")
     end = end.strftime("%Y-%m-%d") 
     
-    result = db.connect_to_sqlite(db.get_beta_and_sector, start, end)
+    result = db.get_beta_and_sector(start, end)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
