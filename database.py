@@ -1,9 +1,14 @@
 import sqlite3 as sql
-from nsepy import get_history
+from nsepython import *
 from datetime import datetime
 import datetime as dt
 from scipy.stats import  linregress
 import csv
+
+
+DB_DATE_FORMAT = "%Y-%m-%d"
+
+
 
 def connect_to_sqlite(func):
 
@@ -25,17 +30,17 @@ def connect_to_sqlite(func):
 
 def getStockData(stock, start, end, nifty=False):
     if nifty:
-        Nifty = get_history(
-            symbol=stock,
-            start=datetime.strptime(start, '%Y-%m-%d').date(),
-            end=datetime.strptime(end, '%Y-%m-%d').date(),
-            index=True
+        Nifty = index_history(
+            stock,
+            datetime.strptime(start, '%Y-%m-%d').strftime("%d-%b-%Y"),
+            datetime.strptime(end, '%Y-%m-%d').strftime("%d-%b-%Y")
         )
         return Nifty
-    stock_data = get_history(
-            symbol=stock,
-            start=datetime.strptime(start, '%Y-%m-%d').date(),
-            end=datetime.strptime(end, '%Y-%m-%d').date()
+    stock_data = equity_history(
+            stock,
+            "EQ",
+            datetime.strptime(start, '%Y-%m-%d').strftime("%d-%m-%Y"),
+            datetime.strptime(end, '%Y-%m-%d').strftime("%d-%m-%Y")
         )
     return stock_data
         
@@ -50,7 +55,7 @@ def get_sector_info():
         
 
 def valid_date(cur_date, last_date):
-    return datetime.strptime(cur_date, "%Y-%m-%d") > datetime.strptime(last_date, "%Y-%m-%d")
+    return datetime.strptime(cur_date, DB_DATE_FORMAT) > datetime.strptime(last_date, DB_DATE_FORMAT)
 
 
 @connect_to_sqlite
@@ -136,15 +141,31 @@ def get_beta_and_sector(cur, start, end):
             results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
     return results
 
-
+def date_diff(start, end):
+    start = datetime.strptime(start, DB_DATE_FORMAT)
+    end = datetime.strptime(end, DB_DATE_FORMAT)
+    count = 0
+    temp_date = start
+    
+    while temp_date < end:
+        temp_date = temp_date + dt.timedelta(days=1)
+        if temp_date.weekday() < 5:
+            count += 1
+    
+    return count
 
 @connect_to_sqlite
 def update_data(cur, now, start_date=None):
     if not start_date:
         last = get_last_date(cur, "NIFTY50")
+        now_date = datetime.strptime(now, DB_DATE_FORMAT)
         if not valid_date(now, last):
             print("Data Up to Date")
             return
+        elif date_diff(last, now) == 1 and now_date.hour < 18:
+            print("Data yet to be updated in server")
+            return
+        
     with open("stocks.txt") as f:
         for stock in f:
             stock = stock.strip()
@@ -157,23 +178,26 @@ def update_data(cur, now, start_date=None):
                 validate = True
                 
             data = getStockData(stock, last, now)
-            for j,k,l in zip(data.index, data.Close, data.Open):
+            for j,k,l in zip(data.mTIMESTAMP, data.CH_CLOSING_PRICE, data.CH_OPENING_PRICE):
+                j = datetime.strptime(j.split('T18')[0], "%d-%b-%Y").strftime(DB_DATE_FORMAT)
                 add_record(cur, stock, str(j), k, l, validate=validate)
             print(f"[{stock}] updated")
     
     index_data = getStockData("NIFTY 50", last, now, nifty=True)
-    for j,k,l in zip(index_data.index, index_data.Close, index_data.Open):
+    print(index_data)
+    for j,k,l in zip(index_data.HistoricalDate, index_data.CLOSE, index_data.OPEN):
+        j = datetime.strptime(j.split('T18')[0], "%d %b %Y").strftime(DB_DATE_FORMAT)
         add_record(cur, "NIFTY50", str(j), k, l, validate=validate)
     print(f"[NIFTY 50] updated")
 
 
 @connect_to_sqlite
 def calculate_preopen(cur, stock, date):
-    date = datetime.strptime(date, "%Y-%m-%d")
+    date = datetime.strptime(date, DB_DATE_FORMAT)
     prev_day = date - dt.timedelta(days=1)
     while prev_day.weekday() >= 5:
         prev_day = prev_day - dt.timedelta(days=1)
-    date, prev_day = date.strftime("%Y-%m-%d"), prev_day.strftime("%Y-%m-%d")
+    date, prev_day = date.strftime(DB_DATE_FORMAT), prev_day.strftime(DB_DATE_FORMAT)
     SQL = f"""SELECT Close FROM "{stock}" WHERE Date = "{prev_day}";"""
     cur.execute(SQL)
     close = cur.fetchone()[0]

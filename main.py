@@ -7,14 +7,17 @@ import datetime as dt
 import calendar
 import traceback
 import pandas
-import datetime as dt
 import pyperclip
 import json
 import os
 
+
+DB_DATE_FORMAT = "%Y-%m-%d"
+
+
 with open('lotSize.json') as f:
     LOT_SIZES = json.load(f)
-today = datetime.today().strftime("%Y-%m-%d")
+today = datetime.today().strftime(DB_DATE_FORMAT)
 print(today)
 db.update_data(today)
 
@@ -22,6 +25,8 @@ root = tk.Tk()
 root.title("Beta Calculator")
 
 LAST_UPDATED = db.get_last_date("NIFTY50")
+
+
 
 class PreOpenData(tk.Toplevel):
     def __init__(self, master):
@@ -75,7 +80,7 @@ class PreOpenData(tk.Toplevel):
     def show(self):
         for i in self.tv.get_children():
                 self.tv.delete(i)
-        date = self.date_cal.get_date().strftime("%Y-%m-%d")
+        date = self.date_cal.get_date().strftime(DB_DATE_FORMAT)
         DATA = db.fetch_preopen(date, sort=self.selected.get())
         for i,row in enumerate(DATA):
             self.tv.insert(parent='', index=i, iid=i, values=row)
@@ -88,9 +93,10 @@ class PreOpenData(tk.Toplevel):
         self.right_click_menu.tk_popup(e.x_root, e.y_root)
         
         
-
-new_button = ttk.Button(root, text="PRE OPEN", command=lambda : PreOpenData(root))
-new_button.pack(pady=2)
+but_frame = tk.Frame(root)
+but_frame.pack()
+new_button = ttk.Button(but_frame, text="PRE OPEN", command=lambda : PreOpenData(root))
+new_button.grid(row=0, column=0, pady=2)
 
 class FilteredBeta(tk.Toplevel):
     def __init__(self, master):
@@ -278,8 +284,8 @@ class FilteredBeta(tk.Toplevel):
         
         return DATA, stocks_list, from_date.strftime("%d-%m-%Y"), date.strftime("%d-%m-%Y")
 
-new_button = ttk.Button(root, text="NEW FILTER", command=lambda : FilteredBeta(root))
-new_button.pack(pady=2)
+new_button = ttk.Button(but_frame, text="NEW FILTER", command=lambda : FilteredBeta(root))
+new_button.grid(row=0, column=1, padx=10)
 
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
@@ -427,8 +433,8 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
         temp_date = temp_date - dt.timedelta(days=1)
         
         
-    start = temp_date.strftime("%Y-%m-%d")
-    end = end.strftime("%Y-%m-%d") 
+    start = temp_date.strftime(DB_DATE_FORMAT)
+    end = end.strftime(DB_DATE_FORMAT) 
     
     result = db.get_beta_and_sector(start, end)
     if sort == "htl":
