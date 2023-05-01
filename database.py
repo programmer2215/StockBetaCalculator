@@ -7,6 +7,7 @@ import csv
 
 
 DB_DATE_FORMAT = "%Y-%m-%d"
+NSE_HOLIDAYS = [x['tradingDate'] for x in nse_holidays()['CBM']] # <--- DD-MM-YYYY
 
 
 
@@ -149,7 +150,7 @@ def date_diff(start, end):
     
     while temp_date < end:
         temp_date = temp_date + dt.timedelta(days=1)
-        if temp_date.weekday() < 5:
+        if temp_date.weekday() < 5 and temp_date.strftime('%d-%m-%Y') not in NSE_HOLIDAYS:
             count += 1
     
     return count
@@ -193,9 +194,10 @@ def update_data(cur, now, start_date=None):
 
 @connect_to_sqlite
 def calculate_preopen(cur, stock, date):
+    orig_date = date
     date = datetime.strptime(date, DB_DATE_FORMAT)
     prev_day = date - dt.timedelta(days=1)
-    while prev_day.weekday() >= 5:
+    while prev_day.weekday() >= 5 and prev_day.strftime('%d-%m-%Y') in NSE_HOLIDAYS:
         prev_day = prev_day - dt.timedelta(days=1)
     date, prev_day = date.strftime(DB_DATE_FORMAT), prev_day.strftime(DB_DATE_FORMAT)
     SQL = f"""SELECT Close FROM "{stock}" WHERE Date = "{prev_day}";"""
@@ -217,11 +219,12 @@ def fetch_preopen(date, sort='htl'):
             stock = stock.strip()
             preopen = calculate_preopen(stock, date)
             DATA.append((stock, SECTORS[stock], round(preopen, 2)))
+        nifty_preopen = calculate_preopen('NIFTY50', date)
     if sort == 'htl':
         DATA = sorted(DATA, key=lambda x:x[2], reverse=True)
     elif sort == 'lth':
         DATA = sorted(DATA, key=lambda x:x[2])
-    return DATA
+    return DATA, nifty_preopen
 
 if __name__ == "__main__":
     prompt = input("Are you sure you want to reset the data? (y/n): ")

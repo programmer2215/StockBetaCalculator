@@ -37,6 +37,10 @@ class PreOpenData(tk.Toplevel):
         self.status_lab = tk.Label(self, textvariable=self.status_var, font=('Helvetica', 13))
         self.status_lab.pack(pady=5)
 
+        self.nifty_var = tk.StringVar()
+        self.nifty_lab = tk.Label(self, textvariable=self.nifty_var, font=('Helvetica', 13))
+        self.nifty_lab.pack(pady=5)
+
         self.frame_top = tk.Frame(self)
         self.frame_top.pack(padx=5, pady=5)
 
@@ -81,9 +85,14 @@ class PreOpenData(tk.Toplevel):
         for i in self.tv.get_children():
                 self.tv.delete(i)
         date = self.date_cal.get_date().strftime(DB_DATE_FORMAT)
-        DATA = db.fetch_preopen(date, sort=self.selected.get())
+        DATA, nifty = db.fetch_preopen(date, sort=self.selected.get())
         for i,row in enumerate(DATA):
             self.tv.insert(parent='', index=i, iid=i, values=row)
+        self.nifty_var.set(f"Nifty : {round(nifty, 3)} %")
+        if nifty < 0:
+            self.nifty_lab.config(fg="red")
+        else:
+            self.nifty_lab.config(fg="green")
     
     def copy_security(self):
         cur_row = self.tv.focus()
