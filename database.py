@@ -9,7 +9,7 @@ import csv
 DB_DATE_FORMAT = "%Y-%m-%d"
 NSE_HOLIDAYS = [x['tradingDate'] for x in nse_holidays()['CBM']] # <--- DD-MM-YYYY
 
-
+print(NSE_HOLIDAYS)
 
 def connect_to_sqlite(func):
 
@@ -67,6 +67,8 @@ def ON_CREATE(cur : sql.Cursor, start, end):
             SQL = f'''
 CREATE TABLE IF NOT EXISTS "{table_name}"(
     Date DATE,
+    High FLOAT,
+    Low FLOAT,
     Close FLOAT,
     Open FLOAT
 );'''
@@ -96,13 +98,15 @@ def get_last_date(cur, stock):
     return str(LAST_DATE[0])
 
 @connect_to_sqlite
-def add_record(cur, stock, date, close, open, cycle=False, validate=False):
+def add_record(cur, stock, date, close, open, cycle=False, validate=False, high=None, low=None):
     if validate:
         LAST_DATE = get_last_date(cur, stock)
         if not valid_date(date, LAST_DATE):
             return
-        
-    SQL = f"""INSERT INTO "{stock}" (Date, Close, Open) VALUES ('{date}', '{close}', '{open}');"""
+    if not high and not low:
+        SQL = f"""INSERT INTO "{stock}" (Date, Close, Open) VALUES ('{date}', '{close}', '{open}');"""
+    else:
+        SQL = f"""INSERT INTO "{stock}" (Date, High, Low, Close, Open) VALUES ('{date}', '{high}', '{low}', '{close}', '{open}');"""
     cur.execute(SQL)
     if cycle:
         SQL = f"""DELETE FROM "{stock}" WHERE Date = (SELECT min(Date) FROM {stock});"""
@@ -115,12 +119,14 @@ def calculate_beta(nifty_changes, stock_changes):
     return m.slope
 
 @connect_to_sqlite
-def get_beta_and_sector(cur, start, end):
-    SQL = f'SELECT Close, Date FROM NIFTY50 Where Date BETWEEN "{start}" AND "{end}";'
+def get_beta_and_sector(cur, start, end, cpr_date=None):
+    SQL = f'SELECT Close, Date FROM NIFTY50 Where Date BETWEEN "{start}" AND "{end}" ORDER BY Date;'
     results = []
     cur.execute(SQL)
     percent_changes_nifty = []
     close_data = cur.fetchall()
+    
+    print(close_data)
     
     sector_data = get_sector_info()
     for i in range(0, len(close_data) - 1):
@@ -130,16 +136,30 @@ def get_beta_and_sector(cur, start, end):
         for stock in f:
             percent_changes_stock = []
             stock = stock.strip()
-            SQL = f"""SELECT Close, Date FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}";"""
+            SQL = f"""SELECT Close, Date FROM "{stock}" Where Date BETWEEN "{start}" AND "{end}" ORDER BY Date;"""
             cur.execute(SQL)
             close_data = cur.fetchall()
+            if stock == "HDFC":
+                print(close_data)
+                print()
+            SQL = f"""SELECT High, Low, Close FROM "{stock}" Where Date BETWEEN "{cpr_date}" AND "{cpr_date}";"""
+            cur.execute(SQL)
+            hlc_data = [float(x) for x in cur.fetchall()[0]]
+            
+            
+            
+            pivot = sum(hlc_data) / 3
+            cpr_bc = sum(hlc_data[:2]) / 2
+            cpr_tc = (pivot - cpr_bc) + pivot
+            cpr_range = abs(cpr_tc - pivot)
+            cpr_diff_per = round((cpr_range / pivot) * 100, 3)
 
             for i in range(0, len(close_data)-1):
                 per_change = ((float(close_data[i+1][0]) - float(close_data[i][0]))/float(close_data[i][0])) * 100
                 percent_changes_stock.append(per_change)
 
             beta = calculate_beta(percent_changes_nifty, percent_changes_stock)
-            results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta})
+            results.append({"Symbol":stock, "Sector":sector_data[stock], "Beta": beta, "CPR":cpr_diff_per})
     return results
 
 def date_diff(start, end):
@@ -179,9 +199,9 @@ def update_data(cur, now, start_date=None):
                 validate = True
                 
             data = getStockData(stock, last, now)
-            for j,k,l in zip(data.mTIMESTAMP, data.CH_CLOSING_PRICE, data.CH_OPENING_PRICE):
+            for j,k,l,m, n in zip(data.mTIMESTAMP, data.CH_TRADE_HIGH_PRICE, data.CH_TRADE_LOW_PRICE, data.CH_CLOSING_PRICE, data.CH_OPENING_PRICE):
                 j = datetime.strptime(j.split('T18')[0], "%d-%b-%Y").strftime(DB_DATE_FORMAT)
-                add_record(cur, stock, str(j), k, l, validate=validate)
+                add_record(cur, stock, str(j), m, n, validate=validate, high=k, low=l)
             print(f"[{stock}] updated")
     
     index_data = getStockData("NIFTY 50", last, now, nifty=True)

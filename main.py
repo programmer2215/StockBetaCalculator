@@ -3,7 +3,9 @@ import tkinter as tk
 import database as db
 import tkcalendar as tkcal 
 from datetime import datetime
+from nsepython import nse_holidays
 import datetime as dt
+from datetime import datetime as dt_
 import calendar
 import traceback
 import pandas
@@ -13,7 +15,8 @@ import os
 
 
 DB_DATE_FORMAT = "%Y-%m-%d"
-
+NSE_HOLIDAYS = [dt_.strptime(x['tradingDate'], "%d-%b-%Y").strftime("%d-%m-%Y") for x in nse_holidays()['CBM']]
+print(NSE_HOLIDAYS) # <--- DD-MM-YYYY
 
 with open('lotSize.json') as f:
     LOT_SIZES = json.load(f)
@@ -225,7 +228,7 @@ class FilteredBeta(tk.Toplevel):
         for dat in dates_of_month:
             if dat > date:
                 break
-            if dat.month == date.month and dat.weekday() < 5:
+            if dat.month == date.month and dat.weekday() < 5 and dat.strftime('%d-%m-%Y') not in NSE_HOLIDAYS:
                 data = self.filtered(dat, delta)[0]
                 delta += 1
 
@@ -255,9 +258,12 @@ class FilteredBeta(tk.Toplevel):
         
         count = 0
         temp_date = date
+        cpr_date = None
         while count < start:
             temp_date = temp_date - dt.timedelta(days=1)
-            if temp_date.weekday() < 5:
+            if temp_date.weekday() < 5 and temp_date.strftime('%d-%m-%Y') in NSE_HOLIDAYS:
+                if not cpr_date:
+                    cpr_date = temp_date
                 count += 1
         from_date = pandas.Timestamp(temp_date)
         delta = int(self.delta_var.get())
@@ -323,14 +329,20 @@ frame_top.pack(padx=5, pady=5)
 
 tv = ttk.Treeview(
     frame_top, 
-    columns=(1, 2, 3), 
+    columns=(1, 2, 3, 4), 
     show='headings', 
     height=7)
 tv.pack()
 
+tv.column("#1", width=130)
+tv.column("#2", width=190)
+tv.column("#3", width=90)
+tv.column("#4", width=90)
+
 tv.heading(1, text='Security')
 tv.heading(2, text='Sector')
 tv.heading(3, text='Beta (β)')
+tv.heading(4, text='CPR')
 
 def copy_security():
     cur_row = tv.focus()
@@ -346,7 +358,7 @@ def copy_open():
 
 def copy_row():
     cur_row = tv.focus()
-    string = f"{tv.item(cur_row)['values'][0]},{tv.item(cur_row)['values'][2]}"
+    string = f"{tv.item(cur_row)['values'][0]},{tv.item(cur_row)['values'][2]},{tv.item(cur_row)['values'][3]}"
     pyperclip.copy(string)
 
 def export():
@@ -360,7 +372,7 @@ def export():
 
 def but_export():
     with open("data2.csv", "w", newline="") as f:
-        f.write("Scripts\n")
+        f.write("Scripts,Lot Size\n")
         for i in tv.get_children()[:4]:
             data = tv.item(i)['values']
             lot_size = LOT_SIZES[data[0]]
@@ -381,11 +393,11 @@ def but_export_monthly():
             data = calc(show=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl')[:int(export_rows_var.get())]
             
             for i in data:
-                DATA.append([dat.strftime('%d-%b-%Y'), i['Symbol'], str(i['Beta']), LOT_SIZES[i['Symbol']]])
+                DATA.append([dat.strftime('%d-%b-%Y'), i['Symbol'], str(i['Beta']), str(i['CPR']), LOT_SIZES[i['Symbol']]])
 
     
     with open("data3.csv", "w", newline="") as f:
-        f.write("Date,Stock,Beta,Lotsize\n")
+        f.write("Date,Stock,Beta,CPR,Lotsize\n")
         for i in DATA:
             f.write(f"{','.join(i)}\n")
             
@@ -419,37 +431,44 @@ to_cal.grid(row=1, column=2, padx=20)
 
 
 
-def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
+def calc(sort=None, sectors=None, end=None, days_delta=None, show=True, cpr_date=None):
     for i in tv.get_children():
         tv.delete(i)
     
     if not end:        
         end = to_cal.get_date()
-    if end.weekday() == 0:
-        end = end - dt.timedelta(days=3)
-    else:
-        end = end - dt.timedelta(days=1)
+    
 
     if not days_delta:        
         days_delta = int(from_cal.get())
         print(days_delta)
     count = 0
     temp_date = end
-    while count < days_delta - 1:
-        temp_day = temp_date.strftime("%A")
-        if temp_day not in ["Saturday", "Sunday"]:
-            count += 1
+    
+    while count < days_delta:
         temp_date = temp_date - dt.timedelta(days=1)
+        temp_day = temp_date.strftime("%A")
+        if temp_day not in ["Saturday", "Sunday"] and temp_date.strftime('%d-%m-%Y') not in NSE_HOLIDAYS:
+            if  not cpr_date:
+                cpr_date = temp_date
+                true_end = temp_date
+            count += 1
+        
         
         
     start = temp_date.strftime(DB_DATE_FORMAT)
-    end = end.strftime(DB_DATE_FORMAT) 
+    end = true_end.strftime(DB_DATE_FORMAT) 
+    cpr_date = cpr_date.strftime(DB_DATE_FORMAT)
+    print(start, end)
     
-    result = db.get_beta_and_sector(start, end)
+    result = db.get_beta_and_sector(start, end, cpr_date=cpr_date)
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
         result = sorted(result, key=lambda data: data['Beta'])
+    elif sort == "cpr":
+        result = sorted(result, key=lambda data: data['Beta'], reverse=True)[:5]
+        result = sorted(result, key=lambda data: data['CPR'])
     elif sort == "sctr":
         sub_results = {}
         sorted_by_sector = []
@@ -472,7 +491,7 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True):
 
     if show:
         for i,row in enumerate(result):
-            tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2)))
+            tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2), row['CPR']))
     else:
         return result
 
@@ -489,6 +508,8 @@ r1 = ttk.Radiobutton(frame_controls, text='β high to low', value='htl', variabl
 r1.grid(row=0, column=0)
 r2 = ttk.Radiobutton(frame_controls, text='β low to high', value='lth', variable=selected, command=sort_beta)
 r2.grid(row=1, column=0)
+r3 = ttk.Radiobutton(frame_controls, text='β + CPR', value='cpr', variable=selected, command=sort_beta)
+r3.grid(row=2, column=0)
 
 checkbox_frame = tk.Frame(root)
 checkbox_frame.pack(padx=5, pady=5)
