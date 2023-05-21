@@ -305,6 +305,9 @@ new_button.grid(row=0, column=1, padx=10)
 Last_updated_lab = tk.Label(root, text="Last Updated: "+ LAST_UPDATED, font=("Helvetica", 13))
 Last_updated_lab.pack()
 
+low_cpr_var = tk.StringVar(root)
+low_cpr_lab = tk.Label(root, textvariable=low_cpr_var, font=("Helvetica", 13))
+low_cpr_lab.pack()
 style = ttk.Style()
 style.configure("Treeview", font=('Britannic', 11, 'bold'), rowheight=25)
 style.configure("Treeview.Heading", font=('Britannic' ,13, 'bold'))
@@ -331,7 +334,7 @@ tv = ttk.Treeview(
     frame_top, 
     columns=(1, 2, 3, 4), 
     show='headings', 
-    height=7)
+    height=5)
 tv.pack()
 
 tv.column("#1", width=130)
@@ -462,6 +465,9 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True, cpr_date
     print(start, end)
     
     result = db.get_beta_and_sector(start, end, cpr_date=cpr_date)
+    low_cpr = sorted(result, key=lambda data: data['CPR'])[0]
+    low_cpr_var.set(f"Low CPR: {low_cpr['CPR']} ({low_cpr['Symbol']})")
+
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
