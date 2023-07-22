@@ -18,7 +18,7 @@
     "JSWSTEEL": "1350",
     "KOTAKBANK": "400",
     "LT": "300",
-    "M&M": "700",
+    "M_M": "700",
     "NTPC": "5700",
     "POWERGRID": "2700",
     "RELIANCE": "250",
@@ -46,7 +46,7 @@
     "TECHM": "600",
     "UPL": "1300",
     "WIPRO": "1000",
-    "BAJAJ-AUTO": "250",
+    "BAJAJ_AUTO": "250",
     "HINDALCO": "1075",
     "ULTRACEMCO": "100"
 }

@@ -1,9 +1,10 @@
 from tkinter import ttk
 import tkinter as tk
-import database as db
+import oldDatabase as db
 import tkcalendar as tkcal 
 from datetime import datetime
 from nsepython import nse_holidays
+from database import get_last_date, update_data
 import datetime as dt
 from datetime import datetime as dt_
 import calendar
@@ -13,16 +14,25 @@ import pyperclip
 import json
 import os
 
+with open('filter.txt') as f:
+    SELECTED_STOCKS = [x.strip() for x in f]
+
 
 DB_DATE_FORMAT = "%Y-%m-%d"
-NSE_HOLIDAYS = [dt_.strptime(x['tradingDate'], "%d-%b-%Y").strftime("%d-%m-%Y") for x in nse_holidays()['CBM']]
+NSE_HOLIDAYS = ['26-Jan-2023', '18-Feb-2023', '19-Feb-2023', '07-Mar-2023', '22-Mar-2023', '30-Mar-2023', '01-Apr-2023', '04-Apr-2023', '07-Apr-2023', '14-Apr-2023', '22-Apr-2023', '01-May-2023', '05-May-2023', '28-Jun-2023', '29-Jul-2023', '15-Aug-2023', '16-Aug-2023', '19-Sep-2023', '28-Sep-2023', '02-Oct-2023', '24-Oct-2023', '12-Nov-2023', '14-Nov-2023', '27-Nov-2023', '25-Dec-2023']
+#NSE_HOLIDAYS = [dt_.strptime(x['tradingDate'], "%d-%b-%Y").strftime("%d-%m-%Y") for x in nse_holidays()['CBM']]
+NSE_HOLIDAYS = [dt_.strptime(x, "%d-%b-%Y").strftime("%d-%m") for x in NSE_HOLIDAYS]
 print(NSE_HOLIDAYS) # <--- DD-MM-YYYY
-
 with open('lotSize.json') as f:
     LOT_SIZES = json.load(f)
+with open('stocks.txt') as f:
+    STOCKS = [x.strip() for x in f]
 today = datetime.today().strftime(DB_DATE_FORMAT)
 print(today)
-db.update_data(today)
+#db.update_data(today)
+print(f'LAST UPDATED {get_last_date("NIFTY50")}')
+if input("Do you want to update (y/n): ") == 'y':
+    update_data(get_last_date("NIFTY50"))
 
 root = tk.Tk()
 root.title("Beta Calculator")
@@ -119,185 +129,80 @@ class FilteredBeta(tk.Toplevel):
         self.status_lab = tk.Label(self, textvariable=self.status_var, font=('Helvetica', 13))
         self.status_lab.pack(pady=5)
 
-        self.frame_top = tk.Frame(self)
-        self.frame_top.pack(padx=5, pady=5)
-
-        self.tv = ttk.Treeview(
-            self.frame_top, 
-            columns=(1, 2, 3), 
-            show='headings', 
-            height=7)
-        self.tv.pack()
-
-        self.tv.heading(1, text='Security')
-        self.tv.heading(2, text='Sector')
-        self.tv.heading(3, text='Beta (β)')
-        self.frame_controls = tk.Frame(self.frame_top)
-        self.frame_controls.pack(padx=5)
+        
+        self.frame_controls = tk.Frame(self)
+        self.frame_controls.pack(padx=5, pady=20)
 
         self.delta_lab = tk.Label(self.frame_controls, text='No. of Days: ', font=('Helvetica', 13))
-        self.delta_var = tk.StringVar(value="20")
+        self.delta_var = tk.StringVar(value="5")
         self.delta = ttk.Entry(self.frame_controls, textvariable=self.delta_var, width=7)
         self.delta.grid(row=1, column=0, padx=20)
         self.delta_lab.grid(row=0, column=0, padx=20)
 
         self.from_cal_lab = tk.Label(self.frame_controls, text='From: ', font=('Helvetica', 13))
-        self.from_cal_var = tk.StringVar(value="30")
-        self.from_cal = ttk.Entry(self.frame_controls, textvariable=self.from_cal_var, width=7)
-        self.from_cal.grid(row=1, column=1, padx=20)
+        self.from_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
         self.from_cal_lab.grid(row=0, column=1, padx=20)
+        self.from_cal.grid(row=1, column=1, padx=20)
 
         self.to_cal_lab = tk.Label(self.frame_controls, text='To: ', font=('Helvetica', 13))
         self.to_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
         self.to_cal_lab.grid(row=0, column=2, padx=20)
         self.to_cal.grid(row=1, column=2, padx=20)
 
-        self.ext_cal_lab = tk.Label(self.frame_controls, text='Extra: ', font=('Helvetica', 13))
-        self.ext_cal = tkcal.DateEntry(self.frame_controls, selectmode='day')
-        self.ext_cal_lab.grid(row=0, column=3, padx=20)
-        self.ext_cal.grid(row=1, column=3, padx=20)
 
         self.ranks_lab = tk.Label(self.frame_controls, text='Ranks: ', font=('Helvetica', 13))
-        self.ranks_var = tk.StringVar(value="5")
+        self.ranks_var = tk.StringVar(value="1")
         self.ranks = ttk.Entry(self.frame_controls, textvariable=self.ranks_var, width=7)
         self.ranks.grid(row=1, column=4, padx=20)
         self.ranks_lab.grid(row=0, column=4, padx=20)
 
-        self.button = ttk.Button(self.frame_controls, text="Calculate", command=self.show)
-        self.button.grid(row=0, column=5, padx=20, rowspan=2)
-        self.export_button = ttk.Button(self, text="Export", command=self.export)
-        self.export_button.pack(pady=15)
-        self.monthly_export_button = ttk.Button(self, text="Monthly Export", command=self.but_export_monthly)
-        self.monthly_export_button.pack(pady=15)
+        self.monthly_export_button = ttk.Button(self.frame_controls, text="Monthly Export", command=self.but_export_monthly)
+        self.monthly_export_button.grid(row=0, column=5, padx=20, rowspan=2)
 
-        self.tv.bind("<Button-3>", self.my_popup)
-
-        self.right_click_menu = tk.Menu(self.tv, tearoff=False)
-        self.right_click_menu.add_command(label="Copy Security", command=self.copy_security)
         
-
-    def copy_security(self):
-        cur_row = self.tv.focus()
-        pyperclip.copy(self.tv.item(cur_row)['values'][0])
-
-    def my_popup(self, e):
-        self.right_click_menu.tk_popup(e.x_root, e.y_root)
         
     def status(self, msg="", color="black"):
         self.status_var.set(msg)
         self.status_lab.config(fg=color)
         self.update()
     
-    def export(self):
-        self.status("Exporting...")
-        try:
-            result = self.filtered()
-            with open("data5.csv", "w", newline="") as f:
-                f.write(f"Date,Stock,Lotsize\n")
-                for i in result[1]:
-                    f.write(f"{i[0].strftime('%d-%m-%Y')},{i[1]},{LOT_SIZES[i[1]]}\n")
-            os.startfile('data5.csv')
-            self.status(f"Exported results from {result[2]} to {result[3]}", "green")
-        except Exception as e:
-            print(traceback.format_exc())
-            self.status("Something went wrong", "red")
 
-    def show(self):
-        self.status("Computing...")
-        try:
-            for i in self.tv.get_children():
-                self.tv.delete(i)
-            result = self.filtered()
-            if not result:
-                self.status("Extra Date Invalid", "red")
-                return
-            for i,row in enumerate(result[0]):
-                self.tv.insert(parent='', index=i, iid=i, values=row)
-            self.status(f"Showing results from {result[2]} to {result[3]}", "green")
-        except Exception as e:
-            print(traceback.format_exc())
-            self.status("Something went wrong", "red")
 
     def but_export_monthly(self):
     
         DATA = []
-        date = self.to_cal.get_date()
-        num_days = calendar.monthrange(date.year, date.month)[1]
-        dates_of_month = [dt.date(date.year, date.month, day) for day in range(1, num_days+1)] 
-        delta = 0
-        for dat in dates_of_month:
-            if dat > date:
-                break
-            if dat.month == date.month and dat.weekday() < 5 and dat.strftime('%d-%m-%Y') not in NSE_HOLIDAYS:
-                data = self.filtered(dat, delta)[0]
-                delta += 1
+        
+        start_date = self.from_cal.get_date()
+        end_date = self.to_cal.get_date()
+        days_delta = int(self.delta_var.get())
+        ranks = int(self.ranks_var.get())
+        td = dt.timedelta(days=1)
 
+        curdate = start_date
+        while curdate <= end_date:
+            if curdate.weekday() < 5 and curdate.strftime("%d-%m") not in NSE_HOLIDAYS:
+                data, low_cpr = calc(display=False, end=curdate, days_delta=days_delta, sort='cprβ', show_movement=True, show_low_cpr=True)
+                data = data[:ranks]
                 for i in data:
-                    DATA.append([dat.strftime('%d-%b-%Y'), i[0], str(i[2]), LOT_SIZES[i[0]]])
+                    i['Date'] = curdate.strftime("%d-%m-%Y")
+                    i['Lotsize'] = LOT_SIZES[i['Symbol']]
+                    i['LowCPR'] = low_cpr['Symbol']
+                    
+                    DATA.append(i)
+            curdate = curdate + td
+        
+        
 
         
         with open("filtered_data.csv", "w", newline="") as f:
-            f.write("Date,Stock,Beta,Lotsize\n")
+            f.write("Date,Stock,Movement, Movement %,Lotsize,Low CPR\n")
             for i in DATA:
-                f.write(f"{','.join(i)}\n")
+                f.write(f"{i['Date']},{i['Symbol']},{i['Movement']},{i['MovementPer']},{i['Lotsize']},{i['LowCPR']}\n")
                 
         os.startfile('filtered_data.csv')
         
 
-    def filtered(self, date=None, start=None):
-        DATA = []
-        stocks_list = []
-        ranks = int(self.ranks_var.get())
-        if date:            
-            date = pandas.Timestamp(date)
-        else:
-            date = self.to_cal.get_date()
-        
-        if start == None:
-            start = int(self.from_cal_var.get())
-        
-        count = 0
-        temp_date = date
-        cpr_date = None
-        while count < start:
-            temp_date = temp_date - dt.timedelta(days=1)
-            if temp_date.weekday() < 5 and temp_date.strftime('%d-%m-%Y') in NSE_HOLIDAYS:
-                if not cpr_date:
-                    cpr_date = temp_date
-                count += 1
-        from_date = pandas.Timestamp(temp_date)
-        delta = int(self.delta_var.get())
-        extra = pandas.Timestamp(self.ext_cal.get_date())
-        print(extra, from_date)
-        if extra > from_date:
-            print(extra, from_date)
-            return None
-
-        dates_of_month = [extra] + list(pandas.date_range(from_date, date))
-        export_exclude = []
-        for dat in dates_of_month:
-            if dat >= date:
-                break
-            data = calc(show=False, end=dat, days_delta=delta, sort='htl')[:ranks]
-            if dat != extra:
-                for i in data:
-                    if i['Symbol'] not in [x[1] for x in stocks_list] and i["Symbol"] not in [x[1] for x in export_exclude]:
-                        stocks_list.append([dat, i['Symbol']])
-                        
-            else:
-                for i in data:
-                    export_exclude.append([dat, i['Symbol']])
-
-        data = calc(show=False, end=dat, days_delta=delta, sort='htl')[:ranks]
-        print(stocks_list)
-        
-        for row in data:
-            if row["Symbol"] not in [x[1] for x in stocks_list] and row["Symbol"] not in [x[1] for x in export_exclude]:
-                DATA.append((row["Symbol"], row["Sector"], round(row["Beta"], 2)))
-                stocks_list.append([dat, row["Symbol"]])
-                
-        
-        return DATA, stocks_list, from_date.strftime("%d-%m-%Y"), date.strftime("%d-%m-%Y")
+    
 
 new_button = ttk.Button(but_frame, text="NEW FILTER", command=lambda : FilteredBeta(root))
 new_button.grid(row=0, column=1, padx=10)
@@ -308,6 +213,7 @@ Last_updated_lab.pack()
 low_cpr_var = tk.StringVar(root)
 low_cpr_lab = tk.Label(root, textvariable=low_cpr_var, font=("Helvetica", 13))
 low_cpr_lab.pack()
+
 style = ttk.Style()
 style.configure("Treeview", font=('Britannic', 11, 'bold'), rowheight=25)
 style.configure("Treeview.Heading", font=('Britannic' ,13, 'bold'))
@@ -393,14 +299,14 @@ def but_export_monthly():
         if dat > date:
             break
         if dat.month == date.month and dat.weekday() < 5:
-            data = calc(show=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl')[:int(export_rows_var.get())]
-            
-            for i in data:
-                DATA.append([dat.strftime('%d-%b-%Y'), i['Symbol'], str(i['Beta']), str(i['CPR']), LOT_SIZES[i['Symbol']]])
+            data = calc(display=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl')[0]
+            DATA.append([dat.strftime('%d-%b-%Y'), "Beta", data['Symbol'], LOT_SIZES[data['Symbol']]])
+            _, low = calc(display=False, end=dat, days_delta=int(from_cal_var.get()), sort='htl', show_low_cpr=True)
+            DATA.append([dat.strftime('%d-%b-%Y'), "CPR", low['Symbol'], LOT_SIZES[low['Symbol']]])
 
     
     with open("data3.csv", "w", newline="") as f:
-        f.write("Date,Stock,Beta,CPR,Lotsize\n")
+        f.write("Date,Sort Type,Stock,Lotsize\n")
         for i in DATA:
             f.write(f"{','.join(i)}\n")
             
@@ -422,24 +328,38 @@ frame_controls = tk.Frame(frame_top)
 frame_controls.pack(padx=5)
 
 from_cal_lab = tk.Label(frame_controls, text='No. of Days: ', font=('Helvetica', 13))
-from_cal_var = tk.StringVar(value="20")
+from_cal_var = tk.StringVar(value="5")
 from_cal = ttk.Entry(frame_controls, textvariable=from_cal_var)
-from_cal.grid(row=1, column=1, padx=20)
-from_cal_lab.grid(row=0, column=1, padx=20)
+from_cal.grid(row=1, column=2, padx=20)
+from_cal_lab.grid(row=0, column=2, padx=20)
 
 to_cal_lab = tk.Label(frame_controls, text='Last Date: ', font=('Helvetica', 13))
 to_cal = tkcal.DateEntry(frame_controls, selectmode='day')
-to_cal_lab.grid(row=0, column=2, padx=20)
-to_cal.grid(row=1, column=2, padx=20)
+to_cal_lab.grid(row=0, column=3, padx=20)
+to_cal.grid(row=1, column=3, padx=20)
 
 
 
-def calc(sort=None, sectors=None, end=None, days_delta=None, show=True, cpr_date=None):
+def calc(
+        sort=None, 
+        stocks=None, 
+        end=None, 
+        days_delta=None, 
+        display=True, 
+        cpr_date=None,
+        show_movement=False,
+        show_low_cpr = False,
+        ):
+    
+    global SELECTED_STOCKS
+
     for i in tv.get_children():
         tv.delete(i)
     
     if not end:        
         end = to_cal.get_date()
+    actual_date = end.strftime("%Y-%m-%d")
+        
     
 
     if not days_delta:        
@@ -451,7 +371,7 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True, cpr_date
     while count < days_delta:
         temp_date = temp_date - dt.timedelta(days=1)
         temp_day = temp_date.strftime("%A")
-        if temp_day not in ["Saturday", "Sunday"] and temp_date.strftime('%d-%m-%Y') not in NSE_HOLIDAYS:
+        if temp_day not in ["Saturday", "Sunday"] and temp_date.strftime('%d-%m') not in NSE_HOLIDAYS:
             if  not cpr_date:
                 cpr_date = temp_date
                 true_end = temp_date
@@ -464,46 +384,41 @@ def calc(sort=None, sectors=None, end=None, days_delta=None, show=True, cpr_date
     cpr_date = cpr_date.strftime(DB_DATE_FORMAT)
     print(start, end)
     
-    result = db.get_beta_and_sector(start, end, cpr_date=cpr_date)
+    result = db.get_beta_and_sector(start, end, cpr_date=cpr_date, show_movement=show_movement, act_date=actual_date)
+    if SELECTED_STOCKS:
+        result = [x for x in result if x['Symbol'] in SELECTED_STOCKS]
+    
     low_cpr = sorted(result, key=lambda data: data['CPR'])[0]
-    low_cpr_var.set(f"Low CPR: {low_cpr['CPR']} ({low_cpr['Symbol']})")
-
+    if display:
+        low_cpr_var.set(f"Low CPR: {low_cpr['CPR']} ({low_cpr['Symbol']})")
     if sort == "htl":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)
     elif sort == "lth":
         result = sorted(result, key=lambda data: data['Beta'])
-    elif sort == "cpr":
+    
+    elif sort == "βcpr":
         result = sorted(result, key=lambda data: data['Beta'], reverse=True)[:5]
         result = sorted(result, key=lambda data: data['CPR'])
-    elif sort == "sctr":
-        sub_results = {}
-        sorted_by_sector = []
-        for i in result:
-            if i["Sector"] in sectors:
-                try:
-                    sub_results[i["Sector"]].append(i)
-                except KeyError:
-                    sub_results[i["Sector"]] = []
-                    sub_results[i["Sector"]].append(i)
-        show_rows_val = int(show_rows_var.get())
-        for v in sub_results.values():
-            sub_sorted = sorted(list(v), key=lambda x: x["Beta"], reverse=True)
-            if len(sub_sorted) > show_rows_val:
-                sub_sorted = sub_sorted[:show_rows_val]
-            for i in sub_sorted:
-                sorted_by_sector.append(i)
-        result = sorted_by_sector
+    elif sort == "cprβ":
+        result = sorted(result, key=lambda data: data['CPR'])[:5]
+        result = sorted(result, key=lambda data: data['Beta'], reverse=True)
+    elif sort == "sym":
+        
+        result = [x for x in result if x['Symbol'] in stocks]
                 
 
-    if show:
+    if display:
         for i,row in enumerate(result):
             tv.insert(parent='', index=i, iid=i, values=(row["Symbol"], row["Sector"], round(row["Beta"], 2), row['CPR']))
     else:
-        return result
+        if show_low_cpr:
+            return result, low_cpr
+        else:
+            return result
 
 
 button = ttk.Button(frame_controls, text="Calculate", command=calc)
-button.grid(row=0, column=3, padx=20, rowspan=2)
+button.grid(row=0, column=4, padx=20, rowspan=2)
 
 
 selected = tk.StringVar()
@@ -514,8 +429,11 @@ r1 = ttk.Radiobutton(frame_controls, text='β high to low', value='htl', variabl
 r1.grid(row=0, column=0)
 r2 = ttk.Radiobutton(frame_controls, text='β low to high', value='lth', variable=selected, command=sort_beta)
 r2.grid(row=1, column=0)
-r3 = ttk.Radiobutton(frame_controls, text='β + CPR', value='cpr', variable=selected, command=sort_beta)
-r3.grid(row=2, column=0)
+r3 = ttk.Radiobutton(frame_controls, text='β -> CPR', value='βcpr', variable=selected, command=sort_beta)
+r3.grid(row=0, column=1)
+
+r4 = ttk.Radiobutton(frame_controls, text='CPR -> β', value='cprβ', variable=selected, command=sort_beta)
+r4.grid(row=1, column=1)
 
 checkbox_frame = tk.Frame(root)
 checkbox_frame.pack(padx=5, pady=5)
@@ -524,20 +442,44 @@ SECTORS = list(set(sectors_raw.values()))
 checkbutton_vars = {}
 column = 0
 row = 0
-def sort_sector():
-    req_sectors = []
+
+
+def save_filter(data):
+    with open("filter.txt", "w") as f:
+        for i in data:
+            f.write(i + "\n")
+
+def sort_stock():
+    global SELECTED_STOCKS
+    SELECTED_STOCKS = []
     for i,j in checkbutton_vars.items():
         if j.get() == "1":
-            req_sectors.append(i)
-    calc(sort="sctr", sectors=req_sectors)
-    
+            SELECTED_STOCKS.append(i)
 
-for i, sector in enumerate(SECTORS):
-    if i == 7:
-        column = 1
+    save_filter(SELECTED_STOCKS)
+    calc(sort="sym", stocks=SELECTED_STOCKS)
+
+
+
+def sort_all_sector():
+    
+    if checkbutton_vars['all'] != "1":
+        for _, j in checkbutton_vars.items():
+            j.set("1")
+            
+    else:
+        for _, j in checkbutton_vars.items():
+            j.set("0")
+    sort_stock()
+
+for i, stock in enumerate(STOCKS):
+    if i % 7 == 0:
+        column += 1
         row = 0
-    checkbutton_vars[sector] = tk.Variable()
-    l = ttk.Checkbutton(checkbox_frame, text=sector, variable=checkbutton_vars[sector], command=sort_sector)
+    checkbutton_vars[stock] = tk.Variable()
+    if stock in SELECTED_STOCKS:
+        checkbutton_vars[stock].set("1")
+    l = ttk.Checkbutton(checkbox_frame, text=stock, variable=checkbutton_vars[stock], command=sort_stock)
     l.grid(column=column, row=row, padx=5, sticky=tk.W)
     row += 1
 export_frame = tk.Frame(root)
@@ -559,5 +501,4 @@ export_rows = ttk.Entry(export_frame, textvariable=export_rows_var)
 export_rows.grid(row=1, column=1, padx=40)
 export_button_mon = ttk.Button(export_frame, text="Export Results For Month", command=but_export_monthly)
 export_button_mon.grid(row=2, column=1)
-
 root.mainloop()
